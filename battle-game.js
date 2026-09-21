@@ -55,6 +55,7 @@ const battleState = {
     finalizingRound: false
 };
 let allPokemonNames = [];
+const pokemonNamesCacheKey = "pokemon-japanese-names";
 const battlePokemonList = [
     { id: 1, name: "フシギダネ" },
     { id: 6, name: "リザードン" },
@@ -98,6 +99,21 @@ function normalizeAnswer(value) {
 }
 
 async function loadPokemonNames() {
+    quizAnswer.placeholder = "候補を読み込んでいます...";
+
+    try {
+        const cachedNames = JSON.parse(localStorage.getItem(pokemonNamesCacheKey) || "null");
+
+        if (Array.isArray(cachedNames) && cachedNames.length > 0) {
+            allPokemonNames = cachedNames;
+            updateSuggestions();
+            quizAnswer.placeholder = "日本語名を入力";
+            return;
+        }
+    } catch (error) {
+        console.warn("ポケモン名のキャッシュを読み込めませんでした:", error);
+    }
+
     try {
         const response = await fetch(
             "https://pokeapi.co/api/v2/pokemon-species?limit=1025"
@@ -157,13 +173,21 @@ async function loadPokemonNames() {
             .sort((firstPokemon, secondPokemon) =>
                 firstPokemon.name.localeCompare(secondPokemon.name, "ja")
             );
+        localStorage.setItem(pokemonNamesCacheKey, JSON.stringify(allPokemonNames));
         updateSuggestions();
+        quizAnswer.placeholder = "日本語名を入力";
     } catch (error) {
         console.error(error);
+        quizAnswer.placeholder = "日本語名を入力";
+        quizMessage.textContent = "ポケモン名の候補を読み込めませんでした。手入力は可能です。";
     }
 }
 
 function updateSuggestions() {
+    if (!pokemonSuggestions) {
+        return;
+    }
+
     const query = quizAnswer.value.trim();
     const normalizedQuery = normalizeKana(query);
     const matchedNames = query
