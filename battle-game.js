@@ -43,6 +43,7 @@ const auth = getAuth(app);
 const battleState = {
     correctAnswer: "",
     pokemonId: null,
+    started: false,
     answered: false,
     resultShown: false,
     roomData: null
@@ -95,6 +96,7 @@ function showResult(roomData) {
     const myCorrect = myPlayer.correct === true;
     const opponentCorrect = opponent.correct === true;
     battleState.resultShown = true;
+    showPokemonImage();
     setWaitingState(false);
     quizAnswer.disabled = true;
     quizCheckButton.disabled = true;
@@ -156,10 +158,9 @@ function handleRoomUpdate(snapshot) {
         return;
     }
 
-    quizStartButton.disabled = false;
-    if (!battleState.answered) {
+    if (!battleState.answered && !battleState.started) {
         setWaitingState(false);
-        quizMessage.textContent = "相手が参加しました。クイズを開始してください。";
+        startQuiz();
     }
 
     if (myPlayer.submitted && opponent.submitted) {
@@ -207,12 +208,25 @@ async function submitAnswer() {
     }
 }
 
-quizStartButton.addEventListener("click", () => {
+function startQuiz() {
+    if (battleState.started) {
+        return;
+    }
+
+    battleState.started = true;
     quizStartButton.disabled = true;
+    quizStartButton.hidden = true;
     showQuestionMark();
-    showPokemonImage();
     quizMessage.textContent = "鳴き声を聞いて、ポケモンの名前を入力してください。";
     replayCryButton.disabled = false;
+
+    if (battleState.pokemonId) {
+        new Audio(`https://raw.githubusercontent.com/PokeAPI/sounds/master/cries/pokemon/latest/${battleState.pokemonId}.ogg`).play().catch(() => {});
+    }
+}
+
+quizStartButton.addEventListener("click", () => {
+    startQuiz();
 });
 
 replayCryButton.addEventListener("click", () => {

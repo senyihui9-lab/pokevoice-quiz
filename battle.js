@@ -8,6 +8,7 @@ import {
 import {
     get,
     getDatabase,
+    onValue,
     ref,
     set,
     update
@@ -55,6 +56,7 @@ function normalizeRoomCode(value) {
 }
 
 function setRoomStatus(message, type = "info") {
+    roomStatusMessage.hidden = false;
     roomStatusMessage.textContent = message;
     roomStatusMessage.className = `room-status-message ${type}`;
 }
@@ -66,6 +68,23 @@ function saveSession(roomCode, role) {
 function openBattleGame(roomCode, role) {
     saveSession(roomCode, role);
     window.location.href = `battle-game.html?room=${encodeURIComponent(roomCode)}`;
+}
+
+function waitForOpponent(roomCode) {
+    const roomReference = ref(db, `rooms/${roomCode}`);
+
+    onValue(roomReference, snapshot => {
+        const roomData = snapshot.val();
+
+        if (roomData?.guestUid) {
+            setRoomStatus("相手が参加しました。対戦画面へ移動します…", "success");
+            openBattleGame(roomCode, "host");
+        }
+    }, error => {
+        console.error("相手の参加状態の監視に失敗しました:", error);
+        setRoomStatus("相手の参加状態を確認できません。", "error");
+        createRoomButton.disabled = false;
+    });
 }
 
 async function getAuthenticatedUser() {
@@ -118,8 +137,8 @@ async function createRoom() {
 
         generatedRoomCode.textContent = roomCode;
         roomCodeSection.hidden = false;
-        setRoomStatus(`部屋を作成しました。コード: ${roomCode}`, "success");
-        openBattleGame(roomCode, "host");
+        roomStatusMessage.hidden = true;
+        waitForOpponent(roomCode);
     } catch (error) {
         console.error("部屋の作成に失敗しました:", error);
         if (error.code === "auth/operation-not-allowed") {
