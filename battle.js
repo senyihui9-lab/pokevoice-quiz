@@ -36,13 +36,6 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 const sessionKey = "pokemon-battle-session";
-const battlePokemonList = [
-    { id: 1, name: "フシギダネ" },
-    { id: 6, name: "リザードン" },
-    { id: 25, name: "ピカチュウ" },
-    { id: 150, name: "ミュウツー" },
-    { id: 658, name: "ゲッコウガ" }
-];
 
 function generateRoomCode() {
     const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -96,15 +89,39 @@ async function getAuthenticatedUser() {
     return userCredential.user;
 }
 
+async function fetchRandomPokemon() {
+    const randomId = Math.floor(Math.random() * 1025) + 1;
+    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${randomId}`);
+
+    if (!response.ok) {
+        throw new Error("ポケモン情報を取得できませんでした");
+    }
+
+    const data = await response.json();
+    const speciesResponse = await fetch(data.species.url);
+
+    if (!speciesResponse.ok) {
+        throw new Error("ポケモンの日本語名を取得できませんでした");
+    }
+
+    const speciesData = await speciesResponse.json();
+    const japaneseName = speciesData.names.find(
+        name => name.language.name === "ja"
+    );
+
+    return {
+        id: data.id,
+        name: japaneseName ? japaneseName.name : data.name
+    };
+}
+
 async function createRoom() {
     createRoomButton.disabled = true;
     setRoomStatus("部屋を作成しています…");
 
     try {
         const user = await getAuthenticatedUser();
-        const pokemon = battlePokemonList[
-            Math.floor(Math.random() * battlePokemonList.length)
-        ];
+        const pokemon = await fetchRandomPokemon();
         let roomCode = "";
 
         for (let attempt = 0; attempt < 5; attempt += 1) {

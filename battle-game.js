@@ -24,6 +24,8 @@ const battleResultPanel = document.getElementById("battleResultPanel");
 const battleResultText = document.getElementById("battleResultText");
 const nextRoundButton = document.getElementById("nextRoundButton");
 const battleScore = document.getElementById("battleScore");
+const matchResultPopup = document.getElementById("matchResultPopup");
+const matchResultPopupText = document.getElementById("matchResultPopupText");
 const waitingPopup = document.getElementById("waitingPopup");
 const roomConnectionStatus = document.getElementById("roomConnectionStatus");
 
@@ -56,13 +58,6 @@ const battleState = {
 };
 let allPokemonNames = [];
 const pokemonNamesCacheKey = "pokemon-japanese-names";
-const battlePokemonList = [
-    { id: 1, name: "フシギダネ" },
-    { id: 6, name: "リザードン" },
-    { id: 25, name: "ピカチュウ" },
-    { id: 150, name: "ミュウツー" },
-    { id: 658, name: "ゲッコウガ" }
-];
 
 async function getAuthenticatedUser() {
     if (auth.currentUser) {
@@ -95,7 +90,26 @@ function showQuestionMark() {
 }
 
 function normalizeAnswer(value) {
-    return String(value || "").replace(/[\s]/g, "");
+    return normalizeKana(String(value || "").replace(/[\s]/g, ""));
+}
+
+function setResultBackground(isCorrect) {
+    const result = isCorrect ? "correct" : "incorrect";
+    document.body.classList.remove("result-correct", "result-incorrect");
+    document.body.classList.add(`result-${result}`);
+}
+
+function setMatchResultPopup(winner) {
+    matchResultPopup.hidden = !winner;
+    matchResultPopup.classList.remove("win", "lose");
+
+    if (!winner) {
+        return;
+    }
+
+    const hasWon = winner === role;
+    matchResultPopup.classList.add(hasWon ? "win" : "lose");
+    matchResultPopupText.textContent = hasWon ? "勝利！" : "敗北…";
 }
 
 async function loadPokemonNames() {
@@ -212,8 +226,8 @@ function updateSuggestions() {
             option.append(image, nameLabel);
             option.addEventListener("click", () => {
                 quizAnswer.value = pokemon.name;
-                pokemonSuggestions.hidden = true;
                 quizAnswer.focus();
+                pokemonSuggestions.hidden = true;
             });
             return option;
         })
@@ -251,12 +265,42 @@ async function playCry() {
     }
 }
 
+async function fetchRandomPokemon() {
+    const randomId = Math.floor(Math.random() * 1025) + 1;
+    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${randomId}`);
+
+    if (!response.ok) {
+        throw new Error("ポケモン情報を取得できませんでした");
+    }
+
+    const data = await response.json();
+    const speciesResponse = await fetch(data.species.url);
+
+    if (!speciesResponse.ok) {
+        throw new Error("ポケモンの日本語名を取得できませんでした");
+    }
+
+    const speciesData = await speciesResponse.json();
+    const japaneseName = speciesData.names.find(
+        name => name.language.name === "ja"
+    );
+
+    return {
+        id: data.id,
+        name: japaneseName ? japaneseName.name : data.name
+    };
+}
+
 function updateScoreDisplay(roomData) {
     const scores = roomData.scores || { host: 0, guest: 0 };
     const myScore = scores[role] || 0;
     const opponentRole = role === "host" ? "guest" : "host";
     const opponentScore = scores[opponentRole] || 0;
-    battleScore.textContent = `あなた ${myScore} - ${opponentScore} 相手`;
+    battleScore.innerHTML = `
+        <span class="battle-score-side battle-score-player">あなた <strong>${myScore}</strong></span>
+        <span class="battle-score-divider">VS</span>
+        <span class="battle-score-side battle-score-opponent"><strong>${opponentScore}</strong> 相手</span>
+    `;
 }
 
 function showResult(roomData) {
@@ -274,6 +318,8 @@ function showResult(roomData) {
     const myScore = scores[role] || 0;
     const opponentScore = scores[opponentRole] || 0;
     battleState.resultShown = true;
+    setResultBackground(myCorrect);
+    setMatchResultPopup(result.winner);
     showPokemonImage();
     setWaitingState(false);
     quizAnswer.disabled = true;
@@ -350,9 +396,7 @@ async function advanceRound() {
         return;
     }
 
-    const nextPokemon = battlePokemonList[
-        Math.floor(Math.random() * battlePokemonList.length)
-    ];
+    const nextPokemon = await fetchRandomPokemon();
 
     await update(ref(db, `rooms/${roomCode}`), {
         round: (battleState.roomData.round || 1) + 1,
@@ -420,6 +464,8 @@ function handleRoomUpdate(snapshot) {
         battleState.started = false;
         battleState.answered = false;
         battleState.resultShown = false;
+        document.body.classList.remove("result-correct", "result-incorrect");
+        setMatchResultPopup(null);
         battleResultPanel.hidden = true;
         quizAnswer.value = "";
         quizAnswer.disabled = false;

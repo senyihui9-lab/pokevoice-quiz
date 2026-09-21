@@ -495,10 +495,102 @@ button:disabled {
 }
 
 .battle-score {
-    margin: 0;
-    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: fit-content;
+    min-width: 260px;
+    margin: 2px auto 0;
+    padding: 10px 16px;
+    border: 2px solid #27364b;
+    border-radius: 14px;
+    background-color: #182333;
+    color: white;
+    box-shadow: 0 5px 0 #0e151f, 0 9px 16px rgba(14, 21, 31, 0.22);
+    font-size: 14px;
     font-weight: bold;
-    color: #1f5fbf;
+    letter-spacing: 0.04em;
+}
+
+.battle-score-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+
+.battle-score-side strong {
+    display: inline-grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 10px;
+    color: #182333;
+    font-size: 25px;
+    line-height: 1;
+}
+
+.battle-score-player strong {
+    background-color: #ffd43b;
+}
+
+.battle-score-opponent strong {
+    background-color: #75b9ff;
+}
+
+.battle-score-divider {
+    color: #ffefaa;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+}
+
+.match-result-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    background-color: rgba(16, 24, 38, 0.3);
+    animation: match-result-appear 0.35s ease-out both;
+}
+
+.match-result-popup[hidden] {
+    display: none;
+}
+
+.match-result-popup strong {
+    padding: 24px 42px;
+    border: 5px solid white;
+    border-radius: 20px;
+    color: white;
+    font-size: clamp(48px, 12vw, 96px);
+    line-height: 1;
+    text-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+    transform: rotate(-4deg);
+}
+
+.match-result-popup.win strong {
+    background-color: #1f9d55;
+    box-shadow: 0 10px 0 #126b38, 0 18px 30px rgba(18, 107, 56, 0.35);
+}
+
+.match-result-popup.lose strong {
+    background-color: #d64545;
+    box-shadow: 0 10px 0 #922f2f, 0 18px 30px rgba(146, 47, 47, 0.35);
+}
+
+@keyframes match-result-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .waiting-popup {
