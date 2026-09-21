@@ -494,6 +494,12 @@ button:disabled {
     font-weight: bold;
 }
 
+.next-round-countdown {
+    margin-top: 12px !important;
+    color: #1f5fbf;
+    font-size: 16px !important;
+}
+
 .battle-hints {
     margin-top: 18px;
     padding: 14px 16px;

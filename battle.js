@@ -185,8 +185,8 @@ async function createRoom() {
                     guestUid: null,
                     pokemon,
                     players: {
-                        host: { joined: true, answer: "", submitted: false, nextRoundReady: false },
-                        guest: { joined: false, answer: "", submitted: false, nextRoundReady: false }
+                        host: { joined: true, answer: "", submitted: false },
+                        guest: { joined: false, answer: "", submitted: false }
                     }
                 });
                 roomCode = candidate;

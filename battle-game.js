@@ -22,7 +22,7 @@ const pokemonSuggestions = document.getElementById("pokemonSuggestions");
 const quizCheckButton = document.getElementById("quizCheckButton");
 const battleResultPanel = document.getElementById("battleResultPanel");
 const battleResultText = document.getElementById("battleResultText");
-const nextRoundButton = document.getElementById("nextRoundButton");
+const nextRoundCountdown = document.getElementById("nextRoundCountdown");
 const battleScore = document.getElementById("battleScore");
 const matchResultPopup = document.getElementById("matchResultPopup");
 const matchResultPopupText = document.getElementById("matchResultPopupText");
@@ -58,7 +58,9 @@ const battleState = {
     audio: null,
     round: 0,
     hintLevel: 0,
-    finalizingRound: false
+    finalizingRound: false,
+    countdownTimer: null,
+    advancingRound: false
 };
 let allPokemonNames = [];
 const pokemonNamesCacheKey = "pokemon-japanese-names";
@@ -130,6 +132,44 @@ function setMatchResultPopup(winner) {
     const hasWon = winner === role;
     matchResultPopup.classList.add(hasWon ? "win" : "lose");
     matchResultPopupText.textContent = hasWon ? "勝利！" : "敗北…";
+}
+
+function stopNextRoundCountdown() {
+    if (battleState.countdownTimer) {
+        clearInterval(battleState.countdownTimer);
+        battleState.countdownTimer = null;
+    }
+    nextRoundCountdown.hidden = true;
+}
+
+function startNextRoundCountdown(roomData) {
+    stopNextRoundCountdown();
+
+    if (roomData.roundResult?.winner || !roomData.roundResult?.nextRoundAt) {
+        return;
+    }
+
+    const updateCountdown = () => {
+        const remaining = Math.max(0, roomData.roundResult.nextRoundAt - Date.now());
+        const seconds = Math.ceil(remaining / 1000);
+        nextRoundCountdown.textContent = `${seconds}秒後に次の問題へ移動します`;
+        nextRoundCountdown.hidden = false;
+
+        if (remaining <= 0) {
+            stopNextRoundCountdown();
+            if (role === "host" && !battleState.advancingRound) {
+                battleState.advancingRound = true;
+                advanceRound(roomData)
+                    .catch(error => console.error("次のラウンドへの移行に失敗しました:", error))
+                    .finally(() => {
+                        battleState.advancingRound = false;
+                    });
+            }
+        }
+    };
+
+    updateCountdown();
+    battleState.countdownTimer = setInterval(updateCountdown, 250);
 }
 
 async function loadPokemonNames() {
@@ -399,8 +439,7 @@ function showResult(roomData, fallbackResult = null) {
     quizCheckButton.disabled = true;
     battleResultPanel.hidden = false;
     updateScoreDisplay(roomData);
-    nextRoundButton.hidden = result.winner !== null;
-    nextRoundButton.disabled = false;
+    startNextRoundCountdown(roomData);
 
     if (result.kind === "failure") {
         quizMessage.textContent = "今回は失敗です。";
@@ -470,7 +509,8 @@ async function finalizeRound(roomData) {
                         kind: "failure",
                         hostCorrect: false,
                         guestCorrect: false,
-                        winner: null
+                        winner: null,
+                        nextRoundAt: Date.now() + 5000
                     }
                 });
             }
@@ -490,7 +530,8 @@ async function finalizeRound(roomData) {
                 kind: "correct",
                 hostCorrect: hostPlayer.correct === true,
                 guestCorrect: guestPlayer.correct === true,
-                winner
+                winner,
+                nextRoundAt: winner ? null : Date.now() + 5000
             }
         });
     } catch (error) {
@@ -511,29 +552,8 @@ function createLocalRoundResult(roomData) {
     };
 }
 
-async function requestNextRound() {
-    const roomData = battleState.roomData;
-
-    if (!roomData?.roundResult || roomData.roundResult.winner || roomData.players?.[role]?.nextRoundReady) {
-        return;
-    }
-
-    setWaitingState(true);
-    quizMessage.textContent = "次の問題を準備しています。相手を待っています。";
-    await update(ref(db, `rooms/${roomCode}/players/${role}`), {
-        nextRoundReady: true
-    });
-}
-
 async function advanceRound(roomData) {
     if (role !== "host" || !roomData?.roundResult || roomData.roundResult.winner) {
-        return;
-    }
-
-    const hostReady = roomData.players?.host?.nextRoundReady === true;
-    const guestReady = roomData.players?.guest?.nextRoundReady === true;
-
-    if (!hostReady || !guestReady) {
         return;
     }
 
@@ -548,11 +568,9 @@ async function advanceRound(roomData) {
         "players/host/answer": "",
         "players/host/correct": false,
         "players/host/submitted": false,
-        "players/host/nextRoundReady": false,
         "players/guest/answer": "",
         "players/guest/correct": false,
-        "players/guest/submitted": false,
-        "players/guest/nextRoundReady": false
+        "players/guest/submitted": false
     });
 }
 
@@ -603,12 +621,7 @@ function handleRoomUpdate(snapshot) {
         showResult(roomData);
         if (roomData.roundResult?.winner) {
             setWaitingState(false);
-        } else if (myPlayer.nextRoundReady) {
-            setWaitingState(true);
         }
-        advanceRound(roomData).catch(error => {
-            console.error("次のラウンドへの移行に失敗しました:", error);
-        });
         return;
     }
 
@@ -624,7 +637,7 @@ function handleRoomUpdate(snapshot) {
         quizAnswer.value = "";
         quizAnswer.disabled = false;
         quizCheckButton.disabled = false;
-        nextRoundButton.hidden = true;
+        stopNextRoundCountdown();
         showQuestionMark();
     }
 
@@ -722,13 +735,6 @@ replayCryButton.addEventListener("click", () => {
 });
 
 quizCheckButton.addEventListener("click", submitAnswer);
-nextRoundButton.addEventListener("click", () => {
-    nextRoundButton.disabled = true;
-    requestNextRound().catch(error => {
-        console.error("次のラウンドへの移行に失敗しました:", error);
-        nextRoundButton.disabled = false;
-    });
-});
 quizAnswer.addEventListener("input", updateSuggestions);
 quizAnswer.addEventListener("focus", updateSuggestions);
 quizAnswer.addEventListener("keydown", event => {
