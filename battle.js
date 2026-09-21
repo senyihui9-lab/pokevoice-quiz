@@ -121,7 +121,13 @@ async function createRoom() {
         openBattleGame(roomCode, "host");
     } catch (error) {
         console.error("部屋の作成に失敗しました:", error);
-        setRoomStatus("部屋を作成できませんでした。Firebase のルールを確認してください。", "error");
+        if (error.code === "auth/operation-not-allowed") {
+            setRoomStatus("匿名認証が無効です。Firebase Console で匿名ログインを有効にしてください。", "error");
+        } else if (error.code === "PERMISSION_DENIED" || error.code === "database/permission-denied") {
+            setRoomStatus("Firebase の書き込みルールで拒否されました。Realtime Database の Rules を確認してください。", "error");
+        } else {
+            setRoomStatus(`部屋を作成できませんでした。${error.message || "Firebase の設定を確認してください。"}`, "error");
+        }
         createRoomButton.disabled = false;
     }
 }
