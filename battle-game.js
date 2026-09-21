@@ -224,6 +224,9 @@ function updateSuggestions() {
             const nameLabel = document.createElement("span");
             nameLabel.textContent = pokemon.name;
             option.append(image, nameLabel);
+            option.addEventListener("mousedown", event => {
+                event.preventDefault();
+            });
             option.addEventListener("click", () => {
                 quizAnswer.value = pokemon.name;
                 quizAnswer.focus();
@@ -303,9 +306,9 @@ function updateScoreDisplay(roomData) {
     `;
 }
 
-function showResult(roomData) {
+function showResult(roomData, fallbackResult = null) {
     const players = roomData.players || {};
-    const result = roomData.roundResult;
+    const result = roomData.roundResult || fallbackResult;
 
     if (!result) {
         return;
@@ -386,9 +389,20 @@ async function finalizeRound(roomData) {
         });
     } catch (error) {
         console.error("ラウンド結果の保存に失敗しました:", error);
+        quizMessage.textContent = "結果の同期に失敗しました。相手の画面にも結果を表示しています。";
     } finally {
         battleState.finalizingRound = false;
     }
+}
+
+function createLocalRoundResult(roomData) {
+    const hostCorrect = roomData.players?.host?.correct === true;
+    const guestCorrect = roomData.players?.guest?.correct === true;
+    return {
+        hostCorrect,
+        guestCorrect,
+        winner: null
+    };
 }
 
 async function advanceRound() {
@@ -480,7 +494,12 @@ function handleRoomUpdate(snapshot) {
     }
 
     if (myPlayer.submitted && opponent.submitted) {
-        finalizeRound(roomData);
+        if (roomData.roundResult) {
+            showResult(roomData);
+        } else {
+            showResult(roomData, createLocalRoundResult(roomData));
+            finalizeRound(roomData);
+        }
     } else if (myPlayer.submitted) {
         setWaitingState(true);
     }
@@ -561,7 +580,15 @@ quizAnswer.addEventListener("input", updateSuggestions);
 quizAnswer.addEventListener("focus", updateSuggestions);
 quizAnswer.addEventListener("keydown", event => {
     if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
         submitAnswer();
+    }
+});
+
+document.addEventListener("click", event => {
+    if (!event.target.closest(".answer-input-wrapper")) {
+        pokemonSuggestions.hidden = true;
     }
 });
 
