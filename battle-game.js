@@ -83,6 +83,20 @@ function normalizeAnswer(value) {
     return String(value || "").replace(/[\s]/g, "");
 }
 
+function playCry() {
+    if (!battleState.pokemonId) {
+        return;
+    }
+
+    const audio = new Audio(
+        `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${battleState.pokemonId}.ogg`
+    );
+    audio.play().catch(error => {
+        console.error("鳴き声の再生に失敗しました:", error);
+        quizMessage.textContent = "鳴き声を再生できませんでした。スピーカーボタンを押してください。";
+    });
+}
+
 function showResult(roomData) {
     const players = roomData.players || {};
     const myPlayer = players[role] || {};
@@ -220,9 +234,7 @@ function startQuiz() {
     quizMessage.textContent = "鳴き声を聞いて、ポケモンの名前を入力してください。";
     replayCryButton.disabled = false;
 
-    if (battleState.pokemonId) {
-        new Audio(`https://raw.githubusercontent.com/PokeAPI/sounds/master/cries/pokemon/latest/${battleState.pokemonId}.ogg`).play().catch(() => {});
-    }
+    playCry();
 }
 
 quizStartButton.addEventListener("click", () => {
@@ -230,9 +242,7 @@ quizStartButton.addEventListener("click", () => {
 });
 
 replayCryButton.addEventListener("click", () => {
-    if (battleState.pokemonId) {
-        new Audio(`https://raw.githubusercontent.com/PokeAPI/sounds/master/cries/pokemon/latest/${battleState.pokemonId}.ogg`).play().catch(() => {});
-    }
+    playCry();
 });
 
 quizCheckButton.addEventListener("click", submitAnswer);
