@@ -6,6 +6,7 @@ import {
 } from
     "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
+    get,
     getDatabase,
     ref,
     set,
@@ -126,7 +127,8 @@ async function createRoom() {
         } else if (error.code === "PERMISSION_DENIED" || error.code === "database/permission-denied") {
             setRoomStatus("Firebase の書き込みルールで拒否されました。Realtime Database の Rules を確認してください。", "error");
         } else {
-            setRoomStatus(`部屋を作成できませんでした。${error.message || "Firebase の設定を確認してください。"}`, "error");
+            const errorCode = error.code ? ` [${error.code}]` : "";
+            setRoomStatus(`部屋を作成できませんでした。${errorCode} ${error.message || "Firebase の設定を確認してください。"}`, "error");
         }
         createRoomButton.disabled = false;
     }
