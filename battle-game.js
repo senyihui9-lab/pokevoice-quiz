@@ -18,9 +18,12 @@ const quizPokemonImage = document.getElementById("quizPokemonImage");
 const quizStartButton = document.getElementById("quizStartButton");
 const replayCryButton = document.getElementById("replayCryButton");
 const quizAnswer = document.getElementById("quizAnswer");
+const pokemonSuggestions = document.getElementById("pokemonSuggestions");
 const quizCheckButton = document.getElementById("quizCheckButton");
 const battleResultPanel = document.getElementById("battleResultPanel");
 const battleResultText = document.getElementById("battleResultText");
+const nextRoundButton = document.getElementById("nextRoundButton");
+const battleScore = document.getElementById("battleScore");
 const waitingPopup = document.getElementById("waitingPopup");
 const roomConnectionStatus = document.getElementById("roomConnectionStatus");
 
@@ -47,8 +50,18 @@ const battleState = {
     answered: false,
     resultShown: false,
     roomData: null,
-    audio: null
+    audio: null,
+    round: 0,
+    finalizingRound: false
 };
+let allPokemonNames = [];
+const battlePokemonList = [
+    { id: 1, name: "フシギダネ" },
+    { id: 6, name: "リザードン" },
+    { id: 25, name: "ピカチュウ" },
+    { id: 150, name: "ミュウツー" },
+    { id: 658, name: "ゲッコウガ" }
+];
 
 async function getAuthenticatedUser() {
     if (auth.currentUser) {
@@ -84,6 +97,113 @@ function normalizeAnswer(value) {
     return String(value || "").replace(/[\s]/g, "");
 }
 
+async function loadPokemonNames() {
+    try {
+        const response = await fetch(
+            "https://pokeapi.co/api/v2/pokemon-species?limit=1025"
+        );
+
+        if (!response.ok) {
+            throw new Error("ポケモン名の一覧を取得できませんでした");
+        }
+
+        const speciesList = await response.json();
+        const names = [];
+        const batchSize = 25;
+
+        for (let index = 0; index < speciesList.results.length; index += batchSize) {
+            const batch = speciesList.results.slice(index, index + batchSize);
+            const batchNames = await Promise.all(
+                batch.map(async species => {
+                    try {
+                        const speciesResponse = await fetch(species.url);
+
+                        if (!speciesResponse.ok) {
+                            return null;
+                        }
+
+                        const speciesData = await speciesResponse.json();
+                        const japaneseName = speciesData.names.find(
+                            name => name.language.name === "ja"
+                        );
+
+                        if (!japaneseName) {
+                            return null;
+                        }
+
+                        const speciesId = species.url.match(/\/([0-9]+)\/$/)[1];
+                        return {
+                            name: japaneseName.name,
+                            imageUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${speciesId}.png`
+                        };
+                    } catch (error) {
+                        console.warn("ポケモン名の取得に失敗しました:", species.name);
+                        return null;
+                    }
+                })
+            );
+
+            names.push(...batchNames);
+            allPokemonNames = names
+                .filter(Boolean)
+                .sort((firstPokemon, secondPokemon) =>
+                    firstPokemon.name.localeCompare(secondPokemon.name, "ja")
+                );
+            updateSuggestions();
+        }
+
+        allPokemonNames = names
+            .filter(Boolean)
+            .sort((firstPokemon, secondPokemon) =>
+                firstPokemon.name.localeCompare(secondPokemon.name, "ja")
+            );
+        updateSuggestions();
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function updateSuggestions() {
+    const query = quizAnswer.value.trim();
+    const normalizedQuery = normalizeKana(query);
+    const matchedNames = query
+        ? allPokemonNames
+            .filter(pokemon => normalizeKana(pokemon.name).startsWith(normalizedQuery))
+            .slice(0, 20)
+        : [];
+
+    pokemonSuggestions.replaceChildren(
+        ...matchedNames.map(pokemon => {
+            const option = document.createElement("button");
+            option.type = "button";
+            option.className = "pokemon-suggestion";
+            option.setAttribute("role", "option");
+            const image = document.createElement("img");
+            image.src = pokemon.imageUrl;
+            image.alt = "";
+            image.loading = "lazy";
+
+            const nameLabel = document.createElement("span");
+            nameLabel.textContent = pokemon.name;
+            option.append(image, nameLabel);
+            option.addEventListener("click", () => {
+                quizAnswer.value = pokemon.name;
+                pokemonSuggestions.hidden = true;
+                quizAnswer.focus();
+            });
+            return option;
+        })
+    );
+
+    pokemonSuggestions.hidden = matchedNames.length === 0;
+}
+
+function normalizeKana(text) {
+    return text.replace(/[ァ-ヶ]/g, character =>
+        String.fromCharCode(character.charCodeAt(0) - 0x60)
+    );
+}
+
 async function playCry() {
     if (!battleState.pokemonId) {
         return;
@@ -107,38 +227,121 @@ async function playCry() {
     }
 }
 
+function updateScoreDisplay(roomData) {
+    const scores = roomData.scores || { host: 0, guest: 0 };
+    const myScore = scores[role] || 0;
+    const opponentRole = role === "host" ? "guest" : "host";
+    const opponentScore = scores[opponentRole] || 0;
+    battleScore.textContent = `あなた ${myScore} - ${opponentScore} 相手`;
+}
+
 function showResult(roomData) {
     const players = roomData.players || {};
-    const myPlayer = players[role] || {};
-    const opponentRole = role === "host" ? "guest" : "host";
-    const opponent = players[opponentRole] || {};
+    const result = roomData.roundResult;
 
-    if (!myPlayer.submitted || !opponent.submitted) {
+    if (!result) {
         return;
     }
 
-    const myCorrect = myPlayer.correct === true;
-    const opponentCorrect = opponent.correct === true;
+    const myCorrect = players[role]?.correct === true;
+    const opponentRole = role === "host" ? "guest" : "host";
+    const opponentCorrect = players[opponentRole]?.correct === true;
+    const scores = roomData.scores || { host: 0, guest: 0 };
+    const myScore = scores[role] || 0;
+    const opponentScore = scores[opponentRole] || 0;
     battleState.resultShown = true;
     showPokemonImage();
     setWaitingState(false);
     quizAnswer.disabled = true;
     quizCheckButton.disabled = true;
     battleResultPanel.hidden = false;
+    updateScoreDisplay(roomData);
+    nextRoundButton.hidden = result.winner !== null || role !== "host";
+    nextRoundButton.disabled = false;
 
     if (myCorrect && opponentCorrect) {
         quizMessage.textContent = "対戦結果が出ました。";
-        battleResultText.textContent = "両者とも正解です。引き分けです。";
+        battleResultText.textContent = `両者正解で1点ずつ。現在 ${myScore} - ${opponentScore} です。`;
     } else if (myCorrect) {
-        quizMessage.textContent = "あなたの勝ちです！";
-        battleResultText.textContent = "あなたは正解、相手は不正解でした。";
+        quizMessage.textContent = result.winner ? "あなたの勝ちです！" : "あなたが正解しました。";
+        battleResultText.textContent = `あなたに1点。現在 ${myScore} - ${opponentScore} です。`;
     } else if (opponentCorrect) {
-        quizMessage.textContent = "相手の勝ちです。";
-        battleResultText.textContent = "あなたは不正解、相手は正解でした。";
+        quizMessage.textContent = result.winner ? "相手の勝ちです。" : "相手が正解しました。";
+        battleResultText.textContent = `相手に1点。現在 ${myScore} - ${opponentScore} です。`;
     } else {
         quizMessage.textContent = "対戦結果が出ました。";
-        battleResultText.textContent = `両者とも不正解です。正解は ${battleState.correctAnswer} でした。`;
+        battleResultText.textContent = `両者不正解で加点なし。正解は ${battleState.correctAnswer} でした。現在 ${myScore} - ${opponentScore} です。`;
     }
+
+    if (result.winner) {
+        battleResultText.textContent += result.winner === role
+            ? " 5点先取であなたの勝利です。"
+            : " 5点先取で相手の勝利です。";
+    }
+}
+
+async function finalizeRound(roomData) {
+    if (role !== "host" || battleState.finalizingRound || roomData.status === "result") {
+        return;
+    }
+
+    const hostPlayer = roomData.players?.host || {};
+    const guestPlayer = roomData.players?.guest || {};
+
+    if (!hostPlayer.submitted || !guestPlayer.submitted) {
+        return;
+    }
+
+    battleState.finalizingRound = true;
+    const scores = roomData.scores || { host: 0, guest: 0 };
+    const nextScores = {
+        host: (scores.host || 0) + (hostPlayer.correct ? 1 : 0),
+        guest: (scores.guest || 0) + (guestPlayer.correct ? 1 : 0)
+    };
+    const winner = nextScores.host >= 5
+        ? "host"
+        : nextScores.guest >= 5
+            ? "guest"
+            : null;
+
+    try {
+        await update(ref(db, `rooms/${roomCode}`), {
+            scores: nextScores,
+            status: "result",
+            roundResult: {
+                hostCorrect: hostPlayer.correct === true,
+                guestCorrect: guestPlayer.correct === true,
+                winner
+            }
+        });
+    } catch (error) {
+        console.error("ラウンド結果の保存に失敗しました:", error);
+    } finally {
+        battleState.finalizingRound = false;
+    }
+}
+
+async function advanceRound() {
+    if (role !== "host" || !battleState.roomData?.roundResult || battleState.roomData.roundResult.winner) {
+        return;
+    }
+
+    const nextPokemon = battlePokemonList[
+        Math.floor(Math.random() * battlePokemonList.length)
+    ];
+
+    await update(ref(db, `rooms/${roomCode}`), {
+        round: (battleState.roomData.round || 1) + 1,
+        status: "ready",
+        pokemon: nextPokemon,
+        roundResult: null,
+        "players/host/answer": "",
+        "players/host/correct": false,
+        "players/host/submitted": false,
+        "players/guest/answer": "",
+        "players/guest/correct": false,
+        "players/guest/submitted": false
+    });
 }
 
 function handleRoomUpdate(snapshot) {
@@ -163,6 +366,7 @@ function handleRoomUpdate(snapshot) {
     }
 
     battleState.roomData = roomData;
+    updateScoreDisplay(roomData);
     battleState.correctAnswer = roomData.pokemon?.name || "";
     battleState.pokemonId = roomData.pokemon?.id || null;
     const opponentRole = role === "host" ? "guest" : "host";
@@ -182,13 +386,31 @@ function handleRoomUpdate(snapshot) {
         return;
     }
 
+    if (roomData.status === "result") {
+        showResult(roomData);
+        return;
+    }
+
+    if (battleState.round !== roomData.round) {
+        battleState.round = roomData.round;
+        battleState.started = false;
+        battleState.answered = false;
+        battleState.resultShown = false;
+        battleResultPanel.hidden = true;
+        quizAnswer.value = "";
+        quizAnswer.disabled = false;
+        quizCheckButton.disabled = false;
+        nextRoundButton.hidden = true;
+        showQuestionMark();
+    }
+
     if (!battleState.answered && !battleState.started) {
         setWaitingState(false);
         startQuiz();
     }
 
     if (myPlayer.submitted && opponent.submitted) {
-        showResult(roomData);
+        finalizeRound(roomData);
     } else if (myPlayer.submitted) {
         setWaitingState(true);
     }
@@ -196,6 +418,8 @@ function handleRoomUpdate(snapshot) {
 
 async function submitAnswer() {
     const answer = quizAnswer.value.trim();
+
+    pokemonSuggestions.hidden = true;
 
     if (!answer || battleState.answered) {
         return;
@@ -256,6 +480,15 @@ replayCryButton.addEventListener("click", () => {
 });
 
 quizCheckButton.addEventListener("click", submitAnswer);
+nextRoundButton.addEventListener("click", () => {
+    nextRoundButton.disabled = true;
+    advanceRound().catch(error => {
+        console.error("次のラウンドへの移行に失敗しました:", error);
+        nextRoundButton.disabled = false;
+    });
+});
+quizAnswer.addEventListener("input", updateSuggestions);
+quizAnswer.addEventListener("focus", updateSuggestions);
 quizAnswer.addEventListener("keydown", event => {
     if (event.key === "Enter") {
         submitAnswer();
@@ -263,6 +496,7 @@ quizAnswer.addEventListener("keydown", event => {
 });
 
 showQuestionMark();
+loadPokemonNames();
 
 if (!roomCode || !session) {
     quizMessage.textContent = "部屋情報がありません。対戦モードから入り直してください。";

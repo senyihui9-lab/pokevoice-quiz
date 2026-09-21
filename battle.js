@@ -114,6 +114,9 @@ async function createRoom() {
                 await set(ref(db, `rooms/${candidate}`), {
                     status: "waiting",
                     createdAt: Date.now(),
+                    round: 1,
+                    scores: { host: 0, guest: 0 },
+                    roundResult: null,
                     hostUid: user.uid,
                     guestUid: null,
                     pokemon,

@@ -494,6 +494,13 @@ button:disabled {
     font-weight: bold;
 }
 
+.battle-score {
+    margin: 0;
+    font-size: 18px;
+    font-weight: bold;
+    color: #1f5fbf;
+}
+
 .waiting-popup {
     position: fixed;
     left: 50%;

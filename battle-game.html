@@ -12,7 +12,8 @@
     <main class="container quiz-page">
         <h1>鳴き声クイズ</h1>
         <p id="quizMessage">相手と同じポケモンを当てて勝負します。</p>
-    <p id="roomConnectionStatus" class="room-status-message" aria-live="polite"></p>
+        <p id="roomConnectionStatus" class="room-status-message" aria-live="polite"></p>
+        <p id="battleScore" class="battle-score" aria-live="polite">あなた 0 - 0 相手</p>
 
         <div id="quizPokemonImage" class="quiz-pokemon-image" aria-label="ポケモンの画像">
             <span aria-hidden="true">?</span>
@@ -27,6 +28,7 @@
             <label for="quizAnswer">このポケモンの名前は？</label>
             <div class="answer-input-wrapper">
                 <input id="quizAnswer" type="text" autocomplete="off" placeholder="日本語名を入力">
+                <div id="pokemonSuggestions" class="pokemon-suggestions" role="listbox" hidden></div>
             </div>
             <button id="quizCheckButton" class="check-answer-button">答え合わせ</button>
         </div>
@@ -34,6 +36,7 @@
         <div id="battleResultPanel" class="battle-result-panel" hidden>
             <h3>対戦結果</h3>
             <p id="battleResultText"></p>
+            <button id="nextRoundButton" class="check-answer-button" type="button" hidden>次の問題へ</button>
         </div>
 
         <div id="waitingPopup" class="waiting-popup" role="status" aria-live="polite" hidden>
