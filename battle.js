@@ -109,10 +109,56 @@ async function fetchRandomPokemon() {
         name => name.language.name === "ja"
     );
 
+    const evolutionResponse = await fetch(speciesData.evolution_chain.url);
+    const evolutionData = evolutionResponse.ok
+        ? await evolutionResponse.json()
+        : null;
+    const evolutionStage = evolutionData
+        ? getEvolutionStage(evolutionData.chain, data.species.name)
+        : 0;
+    const typeNames = {
+        normal: "ノーマル", fire: "ほのお", water: "みず", electric: "でんき",
+        grass: "くさ", ice: "こおり", fighting: "かくとう", poison: "どく",
+        ground: "じめん", flying: "ひこう", psychic: "エスパー", bug: "むし",
+        rock: "いわ", ghost: "ゴースト", dragon: "ドラゴン", dark: "あく",
+        steel: "はがね", fairy: "フェアリー"
+    };
+
     return {
         id: data.id,
-        name: japaneseName ? japaneseName.name : data.name
+        name: japaneseName ? japaneseName.name : data.name,
+        generation: `第${getGeneration(data.id)}世代`,
+        type: typeNames[data.types[0].type.name] || data.types[0].type.name,
+        evolution: ["たね", "1進化", "2進化"][Math.min(evolutionStage, 2)]
     };
+}
+
+function getGeneration(pokedexNumber) {
+    if (pokedexNumber <= 151) return 1;
+    if (pokedexNumber <= 251) return 2;
+    if (pokedexNumber <= 386) return 3;
+    if (pokedexNumber <= 493) return 4;
+    if (pokedexNumber <= 649) return 5;
+    if (pokedexNumber <= 721) return 6;
+    if (pokedexNumber <= 809) return 7;
+    if (pokedexNumber <= 905) return 8;
+    return 9;
+}
+
+function getEvolutionStage(chain, speciesName, stage = 0) {
+    if (chain.species.name === speciesName) {
+        return stage;
+    }
+
+    for (const nextEvolution of chain.evolves_to) {
+        const foundStage = getEvolutionStage(nextEvolution, speciesName, stage + 1);
+
+        if (foundStage >= 0) {
+            return foundStage;
+        }
+    }
+
+    return -1;
 }
 
 async function createRoom() {
@@ -132,14 +178,15 @@ async function createRoom() {
                     status: "waiting",
                     createdAt: Date.now(),
                     round: 1,
+                    hintLevel: 0,
                     scores: { host: 0, guest: 0 },
                     roundResult: null,
                     hostUid: user.uid,
                     guestUid: null,
                     pokemon,
                     players: {
-                        host: { joined: true, answer: "", submitted: false },
-                        guest: { joined: false, answer: "", submitted: false }
+                        host: { joined: true, answer: "", submitted: false, nextRoundReady: false },
+                        guest: { joined: false, answer: "", submitted: false, nextRoundReady: false }
                     }
                 });
                 roomCode = candidate;

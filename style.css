@@ -494,6 +494,29 @@ button:disabled {
     font-weight: bold;
 }
 
+.battle-hints {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border: 1px solid #dfe3e8;
+    border-radius: 12px;
+    background-color: white;
+    text-align: left;
+}
+
+.battle-hints h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.battle-hints p {
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background-color: #f6f9ff;
+    font-weight: bold;
+}
+
 .battle-score {
     display: flex;
     align-items: center;

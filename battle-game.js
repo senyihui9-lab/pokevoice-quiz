@@ -28,6 +28,9 @@ const matchResultPopup = document.getElementById("matchResultPopup");
 const matchResultPopupText = document.getElementById("matchResultPopupText");
 const waitingPopup = document.getElementById("waitingPopup");
 const roomConnectionStatus = document.getElementById("roomConnectionStatus");
+const battleHint1 = document.getElementById("battleHint1");
+const battleHint2 = document.getElementById("battleHint2");
+const battleHint3 = document.getElementById("battleHint3");
 
 const firebaseConfig = {
     apiKey: "AIzaSyBMbTPARxGLgZHD3lVaY4NeOaHBVHhPRs4",
@@ -54,6 +57,7 @@ const battleState = {
     roomData: null,
     audio: null,
     round: 0,
+    hintLevel: 0,
     finalizingRound: false
 };
 let allPokemonNames = [];
@@ -87,6 +91,22 @@ function showQuestionMark() {
     questionMark.setAttribute("aria-hidden", "true");
     quizPokemonImage.className = "quiz-pokemon-image";
     quizPokemonImage.replaceChildren(questionMark);
+}
+
+function renderHints(roomData) {
+    const hintLevel = roomData.hintLevel || 0;
+    const pokemon = roomData.pokemon || {};
+    const answerCharacters = Array.from(pokemon.name || "");
+    const maskedName = answerCharacters.length > 0
+        ? `${answerCharacters[0]}${"○".repeat(Math.max(answerCharacters.length - 1, 0))}`
+        : "";
+
+    battleHint1.textContent = `ヒント1: ${pokemon.generation || ""} / タイプ: ${pokemon.type || ""}`;
+    battleHint2.textContent = `ヒント2: 進化状態: ${pokemon.evolution || ""}`;
+    battleHint3.textContent = `ヒント3: ${maskedName}`;
+    battleHint1.hidden = hintLevel < 1;
+    battleHint2.hidden = hintLevel < 2;
+    battleHint3.hidden = hintLevel < 3;
 }
 
 function normalizeAnswer(value) {
@@ -288,10 +308,56 @@ async function fetchRandomPokemon() {
         name => name.language.name === "ja"
     );
 
+    const evolutionResponse = await fetch(speciesData.evolution_chain.url);
+    const evolutionData = evolutionResponse.ok
+        ? await evolutionResponse.json()
+        : null;
+    const evolutionStage = evolutionData
+        ? getEvolutionStage(evolutionData.chain, data.species.name)
+        : 0;
+    const typeNames = {
+        normal: "ノーマル", fire: "ほのお", water: "みず", electric: "でんき",
+        grass: "くさ", ice: "こおり", fighting: "かくとう", poison: "どく",
+        ground: "じめん", flying: "ひこう", psychic: "エスパー", bug: "むし",
+        rock: "いわ", ghost: "ゴースト", dragon: "ドラゴン", dark: "あく",
+        steel: "はがね", fairy: "フェアリー"
+    };
+
     return {
         id: data.id,
-        name: japaneseName ? japaneseName.name : data.name
+        name: japaneseName ? japaneseName.name : data.name,
+        generation: `第${getGeneration(data.id)}世代`,
+        type: typeNames[data.types[0].type.name] || data.types[0].type.name,
+        evolution: ["たね", "1進化", "2進化"][Math.min(Math.max(evolutionStage, 0), 2)]
     };
+}
+
+function getGeneration(pokedexNumber) {
+    if (pokedexNumber <= 151) return 1;
+    if (pokedexNumber <= 251) return 2;
+    if (pokedexNumber <= 386) return 3;
+    if (pokedexNumber <= 493) return 4;
+    if (pokedexNumber <= 649) return 5;
+    if (pokedexNumber <= 721) return 6;
+    if (pokedexNumber <= 809) return 7;
+    if (pokedexNumber <= 905) return 8;
+    return 9;
+}
+
+function getEvolutionStage(chain, speciesName, stage = 0) {
+    if (chain.species.name === speciesName) {
+        return stage;
+    }
+
+    for (const nextEvolution of chain.evolves_to) {
+        const foundStage = getEvolutionStage(nextEvolution, speciesName, stage + 1);
+
+        if (foundStage >= 0) {
+            return foundStage;
+        }
+    }
+
+    return -1;
 }
 
 function updateScoreDisplay(roomData) {
@@ -323,16 +389,23 @@ function showResult(roomData, fallbackResult = null) {
     battleState.resultShown = true;
     setResultBackground(myCorrect);
     setMatchResultPopup(result.winner);
-    showPokemonImage();
+    if (result.kind !== "failure") {
+        showPokemonImage();
+    } else {
+        showQuestionMark();
+    }
     setWaitingState(false);
     quizAnswer.disabled = true;
     quizCheckButton.disabled = true;
     battleResultPanel.hidden = false;
     updateScoreDisplay(roomData);
-    nextRoundButton.hidden = result.winner !== null || role !== "host";
+    nextRoundButton.hidden = result.winner !== null;
     nextRoundButton.disabled = false;
 
-    if (myCorrect && opponentCorrect) {
+    if (result.kind === "failure") {
+        quizMessage.textContent = "今回は失敗です。";
+        battleResultText.textContent = "ヒント3の後も両者不正解でした。次の問題へ進んでください。";
+    } else if (myCorrect && opponentCorrect) {
         quizMessage.textContent = "対戦結果が出ました。";
         battleResultText.textContent = `両者正解で1点ずつ。現在 ${myScore} - ${opponentScore} です。`;
     } else if (myCorrect) {
@@ -377,11 +450,44 @@ async function finalizeRound(roomData) {
             ? "guest"
             : null;
 
+    if (!hostPlayer.correct && !guestPlayer.correct) {
+        try {
+            if ((roomData.hintLevel || 0) < 3) {
+                await update(ref(db, `rooms/${roomCode}`), {
+                    hintLevel: (roomData.hintLevel || 0) + 1,
+                    roundResult: null,
+                    "players/host/answer": "",
+                    "players/host/correct": false,
+                    "players/host/submitted": false,
+                    "players/guest/answer": "",
+                    "players/guest/correct": false,
+                    "players/guest/submitted": false
+                });
+            } else {
+                await update(ref(db, `rooms/${roomCode}`), {
+                    status: "result",
+                    roundResult: {
+                        kind: "failure",
+                        hostCorrect: false,
+                        guestCorrect: false,
+                        winner: null
+                    }
+                });
+            }
+        } catch (error) {
+            console.error("ヒント更新に失敗しました:", error);
+            quizMessage.textContent = "ヒントの更新に失敗しました。Firebase Rules を確認してください。";
+        }
+        battleState.finalizingRound = false;
+        return;
+    }
+
     try {
         await update(ref(db, `rooms/${roomCode}`), {
             scores: nextScores,
             status: "result",
             roundResult: {
+                kind: "correct",
                 hostCorrect: hostPlayer.correct === true,
                 guestCorrect: guestPlayer.correct === true,
                 winner
@@ -405,8 +511,29 @@ function createLocalRoundResult(roomData) {
     };
 }
 
-async function advanceRound() {
-    if (role !== "host" || !battleState.roomData?.roundResult || battleState.roomData.roundResult.winner) {
+async function requestNextRound() {
+    const roomData = battleState.roomData;
+
+    if (!roomData?.roundResult || roomData.roundResult.winner || roomData.players?.[role]?.nextRoundReady) {
+        return;
+    }
+
+    setWaitingState(true);
+    quizMessage.textContent = "次の問題を準備しています。相手を待っています。";
+    await update(ref(db, `rooms/${roomCode}/players/${role}`), {
+        nextRoundReady: true
+    });
+}
+
+async function advanceRound(roomData) {
+    if (role !== "host" || !roomData?.roundResult || roomData.roundResult.winner) {
+        return;
+    }
+
+    const hostReady = roomData.players?.host?.nextRoundReady === true;
+    const guestReady = roomData.players?.guest?.nextRoundReady === true;
+
+    if (!hostReady || !guestReady) {
         return;
     }
 
@@ -414,15 +541,18 @@ async function advanceRound() {
 
     await update(ref(db, `rooms/${roomCode}`), {
         round: (battleState.roomData.round || 1) + 1,
+        hintLevel: 0,
         status: "ready",
         pokemon: nextPokemon,
         roundResult: null,
         "players/host/answer": "",
         "players/host/correct": false,
         "players/host/submitted": false,
+        "players/host/nextRoundReady": false,
         "players/guest/answer": "",
         "players/guest/correct": false,
-        "players/guest/submitted": false
+        "players/guest/submitted": false,
+        "players/guest/nextRoundReady": false
     });
 }
 
@@ -449,6 +579,7 @@ function handleRoomUpdate(snapshot) {
 
     battleState.roomData = roomData;
     updateScoreDisplay(roomData);
+    renderHints(roomData);
     battleState.correctAnswer = roomData.pokemon?.name || "";
     battleState.pokemonId = roomData.pokemon?.id || null;
     const opponentRole = role === "host" ? "guest" : "host";
@@ -470,11 +601,20 @@ function handleRoomUpdate(snapshot) {
 
     if (roomData.status === "result") {
         showResult(roomData);
+        if (roomData.roundResult?.winner) {
+            setWaitingState(false);
+        } else if (myPlayer.nextRoundReady) {
+            setWaitingState(true);
+        }
+        advanceRound(roomData).catch(error => {
+            console.error("次のラウンドへの移行に失敗しました:", error);
+        });
         return;
     }
 
     if (battleState.round !== roomData.round) {
         battleState.round = roomData.round;
+        battleState.hintLevel = roomData.hintLevel || 0;
         battleState.started = false;
         battleState.answered = false;
         battleState.resultShown = false;
@@ -488,6 +628,17 @@ function handleRoomUpdate(snapshot) {
         showQuestionMark();
     }
 
+    if (battleState.hintLevel !== (roomData.hintLevel || 0)) {
+        battleState.hintLevel = roomData.hintLevel || 0;
+        battleState.started = false;
+        battleState.answered = false;
+        quizAnswer.value = "";
+        quizAnswer.disabled = false;
+        quizCheckButton.disabled = false;
+        battleResultPanel.hidden = true;
+        showQuestionMark();
+    }
+
     if (!battleState.answered && !battleState.started) {
         setWaitingState(false);
         startQuiz();
@@ -497,7 +648,9 @@ function handleRoomUpdate(snapshot) {
         if (roomData.roundResult) {
             showResult(roomData);
         } else {
-            showResult(roomData, createLocalRoundResult(roomData));
+            if (myPlayer.correct || opponent.correct) {
+                showResult(roomData, createLocalRoundResult(roomData));
+            }
             finalizeRound(roomData);
         }
     } else if (myPlayer.submitted) {
@@ -571,7 +724,7 @@ replayCryButton.addEventListener("click", () => {
 quizCheckButton.addEventListener("click", submitAnswer);
 nextRoundButton.addEventListener("click", () => {
     nextRoundButton.disabled = true;
-    advanceRound().catch(error => {
+    requestNextRound().catch(error => {
         console.error("次のラウンドへの移行に失敗しました:", error);
         nextRoundButton.disabled = false;
     });
