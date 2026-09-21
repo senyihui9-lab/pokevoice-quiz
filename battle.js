@@ -69,7 +69,7 @@ function waitForOpponent(roomCode) {
     onValue(roomReference, snapshot => {
         const roomData = snapshot.val();
 
-        if (roomData?.guestUid) {
+        if (roomData?.guestUid && roomData.players?.guest?.joined === true) {
             setRoomStatus("相手が参加しました。対戦画面へ移動します…", "success");
             openBattleGame(roomCode, "host");
         }
