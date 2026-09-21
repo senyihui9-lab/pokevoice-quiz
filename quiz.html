@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鳴き声クイズ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <main class="container quiz-page">
+        <h1>鳴き声クイズ</h1>
+        <p id="quizMessage">クイズを開始すると、ポケモンの鳴き声が流れます。</p>
+
+        <div id="quizPokemonImage" class="quiz-pokemon-image" aria-label="ポケモンの画像">
+            <span aria-hidden="true">?</span>
+        </div>
+
+        <button id="quizStartButton">クイズ開始</button>
+        <div class="replay-cry-wrapper">
+            <button id="replayCryButton" type="button" aria-label="鳴き声をもう一度再生" title="鳴き声をもう一度再生" disabled>🔊</button>
+        </div>
+
+        <div id="quizAnswerArea" hidden>
+            <label for="quizAnswer">このポケモンの名前は？</label>
+            <div class="answer-input-wrapper">
+                <input id="quizAnswer" type="text" autocomplete="off" placeholder="日本語名を入力">
+                <div id="pokemonSuggestions" class="pokemon-suggestions" role="listbox" hidden></div>
+            </div>
+            <button id="quizCheckButton">答え合わせ</button>
+
+            <fieldset id="quizHints">
+                <legend>ヒント</legend>
+                <label class="hint-option">
+                    <input id="generationHintCheckbox" type="checkbox">
+                    ヒント1「世代」
+                </label>
+                <p id="generationHint" class="hint-result" hidden></p>
+
+                <label class="hint-option">
+                    <input id="typeHintCheckbox" type="checkbox" disabled>
+                    ヒント2「タイプ」
+                </label>
+                <p id="typeHint" class="hint-result" hidden></p>
+
+                <label class="hint-option">
+                    <input id="firstLetterHintCheckbox" type="checkbox" disabled>
+                    ヒント3「最初の文字」
+                </label>
+                <p id="firstLetterHint" class="hint-result" hidden></p>
+            </fieldset>
+        </div>
+
+        <a class="back-link" href="index.html">トップページに戻る</a>
+    </main>
+
+    <script src="quiz.js"></script>
+</body>
+
+</html>
