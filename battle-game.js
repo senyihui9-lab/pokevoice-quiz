@@ -160,7 +160,11 @@ function startNextRoundCountdown(roomData) {
             if (role === "host" && !battleState.advancingRound) {
                 battleState.advancingRound = true;
                 advanceRound(roomData)
-                    .catch(error => console.error("次のラウンドへの移行に失敗しました:", error))
+                    .catch(error => {
+                        console.error("次のラウンドへの移行に失敗しました:", error);
+                        nextRoundCountdown.hidden = false;
+                        nextRoundCountdown.textContent = "次の問題へ移動できませんでした。Firebase Rules または通信状態を確認してください。";
+                    })
                     .finally(() => {
                         battleState.advancingRound = false;
                     });
@@ -557,21 +561,27 @@ async function advanceRound(roomData) {
         return;
     }
 
-    const nextPokemon = await fetchRandomPokemon();
+    try {
+        const nextPokemon = await fetchRandomPokemon();
+        const nextRound = (roomData.round || 1) + 1;
 
-    await update(ref(db, `rooms/${roomCode}`), {
-        round: (battleState.roomData.round || 1) + 1,
-        hintLevel: 0,
-        status: "ready",
-        pokemon: nextPokemon,
-        roundResult: null,
-        "players/host/answer": "",
-        "players/host/correct": false,
-        "players/host/submitted": false,
-        "players/guest/answer": "",
-        "players/guest/correct": false,
-        "players/guest/submitted": false
-    });
+        await update(ref(db, `rooms/${roomCode}`), {
+            round: nextRound,
+            hintLevel: 0,
+            status: "ready",
+            pokemon: nextPokemon,
+            roundResult: null,
+            "players/host/answer": "",
+            "players/host/correct": false,
+            "players/host/submitted": false,
+            "players/guest/answer": "",
+            "players/guest/correct": false,
+            "players/guest/submitted": false
+        });
+    } catch (error) {
+        console.error("次の問題の保存に失敗しました:", error);
+        throw error;
+    }
 }
 
 function handleRoomUpdate(snapshot) {
