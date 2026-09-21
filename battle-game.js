@@ -46,7 +46,8 @@ const battleState = {
     started: false,
     answered: false,
     resultShown: false,
-    roomData: null
+    roomData: null,
+    audio: null
 };
 
 async function getAuthenticatedUser() {
@@ -83,18 +84,27 @@ function normalizeAnswer(value) {
     return String(value || "").replace(/[\s]/g, "");
 }
 
-function playCry() {
+async function playCry() {
     if (!battleState.pokemonId) {
         return;
     }
 
-    const audio = new Audio(
-        `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${battleState.pokemonId}.ogg`
-    );
-    audio.play().catch(error => {
+    const audioUrl =
+        `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${battleState.pokemonId}.ogg`;
+
+    if (!battleState.audio || battleState.audio.src !== audioUrl) {
+        battleState.audio = new Audio(audioUrl);
+        battleState.audio.preload = "auto";
+    }
+
+    battleState.audio.currentTime = 0;
+
+    try {
+        await battleState.audio.play();
+    } catch (error) {
         console.error("鳴き声の再生に失敗しました:", error);
-        quizMessage.textContent = "鳴き声を再生できませんでした。スピーカーボタンを押してください。";
-    });
+        quizMessage.textContent = "自動再生が制限されています。スピーカーボタンを押してください。";
+    }
 }
 
 function showResult(roomData) {
