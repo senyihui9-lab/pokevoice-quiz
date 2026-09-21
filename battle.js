@@ -6,7 +6,6 @@ import {
 } from
     "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
-    get,
     getDatabase,
     ref,
     set,
@@ -83,39 +82,38 @@ async function createRoom() {
 
     try {
         const user = await getAuthenticatedUser();
-        let roomCode = "";
-        let roomReference;
-
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-            const candidate = generateRoomCode();
-            const candidateReference = ref(db, `rooms/${candidate}`);
-            const snapshot = await get(candidateReference);
-
-            if (!snapshot.exists()) {
-                roomCode = candidate;
-                roomReference = candidateReference;
-                break;
-            }
-        }
-
-        if (!roomReference) {
-            throw new Error("部屋コードを発行できませんでした");
-        }
-
         const pokemon = battlePokemonList[
             Math.floor(Math.random() * battlePokemonList.length)
         ];
-        await set(roomReference, {
-            status: "waiting",
-            createdAt: Date.now(),
-            hostUid: user.uid,
-            guestUid: null,
-            pokemon,
-            players: {
-                host: { joined: true, answer: "", submitted: false },
-                guest: { joined: false, answer: "", submitted: false }
+        let roomCode = "";
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const candidate = generateRoomCode();
+
+            try {
+                await set(ref(db, `rooms/${candidate}`), {
+                    status: "waiting",
+                    createdAt: Date.now(),
+                    hostUid: user.uid,
+                    guestUid: null,
+                    pokemon,
+                    players: {
+                        host: { joined: true, answer: "", submitted: false },
+                        guest: { joined: false, answer: "", submitted: false }
+                    }
+                });
+                roomCode = candidate;
+                break;
+            } catch (error) {
+                if (error.code !== "PERMISSION_DENIED" || attempt === 4) {
+                    throw error;
+                }
             }
-        });
+        }
+
+        if (!roomCode) {
+            throw new Error("部屋コードを発行できませんでした");
+        }
 
         generatedRoomCode.textContent = roomCode;
         roomCodeSection.hidden = false;
