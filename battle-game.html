@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>対戦中</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <main class="container quiz-page">
+        <h1>鳴き声クイズ</h1>
+        <p id="quizMessage">相手と同じポケモンを当てて勝負します。</p>
+
+        <div id="quizPokemonImage" class="quiz-pokemon-image" aria-label="ポケモンの画像">
+            <span aria-hidden="true">?</span>
+        </div>
+
+        <button id="quizStartButton">クイズ開始</button>
+        <div class="replay-cry-wrapper">
+            <button id="replayCryButton" type="button" aria-label="鳴き声をもう一度再生" title="鳴き声をもう一度再生">🔊</button>
+        </div>
+
+        <div id="quizAnswerArea">
+            <label for="quizAnswer">このポケモンの名前は？</label>
+            <div class="answer-input-wrapper">
+                <input id="quizAnswer" type="text" autocomplete="off" placeholder="日本語名を入力">
+            </div>
+            <button id="quizCheckButton" class="check-answer-button">答え合わせ</button>
+        </div>
+
+        <div id="battleResultPanel" class="battle-result-panel" hidden>
+            <h3>対戦結果</h3>
+            <p id="battleResultText"></p>
+        </div>
+
+        <div id="waitingPopup" class="waiting-popup" role="status" aria-live="polite" hidden>
+            相手を待っています…
+        </div>
+
+        <a class="back-link" href="index.html">トップページに戻る</a>
+    </main>
+
+    <script src="battle-game.js"></script>
+</body>
+
+</html>

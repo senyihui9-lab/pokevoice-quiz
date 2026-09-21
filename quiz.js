@@ -1,3 +1,14 @@
+import { initializeApp } from
+    "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+
+import {
+    getDatabase,
+    ref,
+    set,
+    onValue
+} from
+    "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+import { getFirestore } from "firebase/firestore";
 const quizStartButton = document.getElementById("quizStartButton");
 const replayCryButton = document.getElementById("replayCryButton");
 const quizCheckButton = document.getElementById("quizCheckButton");
@@ -6,23 +17,36 @@ const quizAnswerArea = document.getElementById("quizAnswerArea");
 const quizMessage = document.getElementById("quizMessage");
 const pokemonSuggestions = document.getElementById("pokemonSuggestions");
 const quizPokemonImage = document.getElementById("quizPokemonImage");
+const quizPage = document.querySelector(".quiz-page");
 const generationHintCheckbox = document.getElementById("generationHintCheckbox");
 const typeHintCheckbox = document.getElementById("typeHintCheckbox");
 const firstLetterHintCheckbox = document.getElementById("firstLetterHintCheckbox");
 const generationHint = document.getElementById("generationHint");
 const typeHint = document.getElementById("typeHint");
 const firstLetterHint = document.getElementById("firstLetterHint");
+const firebaseConfig = {
+  apiKey: "AIzaSyBMbTPARxGLgZHD3lVaY4NeOaHBVHhPRs4",
+  authDomain: "pokevoice-quiz-bf927.firebaseapp.com",
+  projectId: "pokevoice-quiz-bf927",
+  storageBucket: "pokevoice-quiz-bf927.firebasestorage.app",
+  messagingSenderId: "22531666936",
+  appId: "1:22531666936:web:67a6e63414d5b15632dc0d"
+};
 
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 let quizPokemon = null;
 let quizAnswerName = "";
 let currentAudio = null;
 let allPokemonNames = [];
+let quizAnswered = false;
 let quizHints = {
     generation: "",
     type: "",
     firstLetter: ""
 };
-
+const db = getDatabase(app);
+const databaseUrl = "https://pokevoice-quiz-bf927-default-rtdb.asia-southeast1.firebasedatabase.app/";
 quizStartButton.addEventListener("click", startQuiz);
 replayCryButton.addEventListener("click", () => {
     if (quizPokemon) {
@@ -31,6 +55,7 @@ replayCryButton.addEventListener("click", () => {
 });
 quizCheckButton.addEventListener("click", checkQuizAnswer);
 quizAnswer.addEventListener("input", updateSuggestions);
+quizAnswer.addEventListener("input", updateAnswerButton);
 quizAnswer.addEventListener("focus", updateSuggestions);
 quizAnswer.addEventListener("keydown", event => {
     if (event.key === "Enter") {
@@ -73,7 +98,15 @@ async function loadPokemonNames() {
                             name => name.language.name === "ja"
                         );
 
-                        return japaneseName ? japaneseName.name : null;
+                        if (!japaneseName) {
+                            return null;
+                        }
+
+                        const speciesId = species.url.match(/\/([0-9]+)\/$/)[1];
+                        return {
+                            name: japaneseName.name,
+                            imageUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${speciesId}.png`
+                        };
                     } catch (error) {
                         console.warn("ポケモン名の取得に失敗しました:", species.name);
                         return null;
@@ -84,13 +117,17 @@ async function loadPokemonNames() {
             names.push(...batchNames);
             allPokemonNames = names
                 .filter(Boolean)
-                .sort((firstName, secondName) => firstName.localeCompare(secondName, "ja"));
+                .sort((firstPokemon, secondPokemon) =>
+                    firstPokemon.name.localeCompare(secondPokemon.name, "ja")
+                );
             updateSuggestions();
         }
 
         allPokemonNames = names
             .filter(Boolean)
-            .sort((firstName, secondName) => firstName.localeCompare(secondName, "ja"));
+            .sort((firstPokemon, secondPokemon) =>
+                firstPokemon.name.localeCompare(secondPokemon.name, "ja")
+            );
         updateSuggestions();
     } catch (error) {
         console.error(error);
@@ -102,19 +139,26 @@ function updateSuggestions() {
     const normalizedQuery = normalizeKana(query);
     const matchedNames = query
         ? allPokemonNames
-            .filter(name => normalizeKana(name).startsWith(normalizedQuery))
+            .filter(pokemon => normalizeKana(pokemon.name).startsWith(normalizedQuery))
             .slice(0, 20)
         : [];
 
     pokemonSuggestions.replaceChildren(
-        ...matchedNames.map(name => {
+        ...matchedNames.map(pokemon => {
             const option = document.createElement("button");
             option.type = "button";
             option.className = "pokemon-suggestion";
             option.setAttribute("role", "option");
-            option.textContent = name;
+            const image = document.createElement("img");
+            image.src = pokemon.imageUrl;
+            image.alt = "";
+            image.loading = "lazy";
+
+            const nameLabel = document.createElement("span");
+            nameLabel.textContent = pokemon.name;
+            option.append(image, nameLabel);
             option.addEventListener("click", () => {
-                quizAnswer.value = name;
+                quizAnswer.value = pokemon.name;
                 pokemonSuggestions.hidden = true;
                 quizAnswer.focus();
             });
@@ -135,6 +179,11 @@ async function startQuiz() {
     quizStartButton.disabled = true;
     quizAnswerArea.hidden = true;
     quizAnswer.value = "";
+    quizAnswered = false;
+    quizAnswer.disabled = false;
+    quizCheckButton.disabled = false;
+    setResultBackground("");
+    updateAnswerButton();
     resetHints();
     showQuestionMark();
     quizMessage.textContent = "ポケモンを選んで鳴き声を再生しています...";
@@ -177,6 +226,13 @@ async function startQuiz() {
     } finally {
         quizStartButton.disabled = false;
     }
+}
+
+function updateAnswerButton() {
+    const hasAnswer = quizAnswer.value.trim().length > 0;
+    quizCheckButton.textContent = hasAnswer ? "答え合わせ" : "あきらめる";
+    quizCheckButton.classList.toggle("give-up-button", !hasAnswer);
+    quizCheckButton.classList.toggle("check-answer-button", hasAnswer);
 }
 
 function resetHints() {
@@ -252,7 +308,7 @@ function getJapaneseTypeName(type) {
 }
 
 function checkQuizAnswer() {
-    if (!quizPokemon) {
+    if (!quizPokemon || quizAnswered) {
         quizMessage.textContent = "先にクイズを開始してください。";
         return;
     }
@@ -266,7 +322,21 @@ function checkQuizAnswer() {
         quizMessage.textContent = `不正解です。正解は ${quizAnswerName} でした。`;
     }
 
+    quizAnswered = true;
+    quizAnswer.disabled = true;
+    quizCheckButton.disabled = true;
+    setResultBackground(answer === correctAnswer ? "correct" : "incorrect");
     showPokemonImage(quizPokemon);
+}
+
+function setResultBackground(result) {
+    quizPage.classList.remove("result-correct", "result-incorrect");
+    document.body.classList.remove("result-correct", "result-incorrect");
+
+    if (result) {
+        quizPage.classList.add(`result-${result}`);
+        document.body.classList.add(`result-${result}`);
+    }
 }
 
 function showQuestionMark() {

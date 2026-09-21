@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>対戦モード</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container battle-container">
+        <section class="battle-section create-room-section">
+            <h1>対戦モード</h1>
+            <p>ここであいことばを作成or入力します。</p>
+
+            <div id="roomCodeSection" class="room-code-section" hidden>
+                <p class="room-code-label">ここにコードが表示されます</p>
+                <div id="generatedRoomCode" class="generated-room-code">-</div>
+            </div>
+
+            <button type="button" id="createRoomButton">部屋を作る</button>
+        </section>
+
+        <div class="battle-divider"></div>
+
+        <section class="battle-section join-room-section">
+            <p>ここにコードを入力してください</p>
+            <div class="battle-form">
+                <input id="battleCode" type="text" placeholder="コードを入力" />
+            </div>
+
+            <button type="button" id="joinRoomButton">部屋に参加</button>
+            <div id="roomStatusMessage" class="room-status-message" aria-live="polite"></div>
+            <a class="back-link" href="index.html">トップページに戻る</a>
+        </section>
+    </div>
+
+    <script src="battle.js"></script>
+</body>
+
+</html>
