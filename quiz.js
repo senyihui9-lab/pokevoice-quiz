@@ -8,7 +8,7 @@ import {
     onValue
 } from
     "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
-import { getFirestore } from "firebase/firestore";
+
 const quizStartButton = document.getElementById("quizStartButton");
 const replayCryButton = document.getElementById("replayCryButton");
 const quizCheckButton = document.getElementById("quizCheckButton");
@@ -30,7 +30,8 @@ const firebaseConfig = {
   projectId: "pokevoice-quiz-bf927",
   storageBucket: "pokevoice-quiz-bf927.firebasestorage.app",
   messagingSenderId: "22531666936",
-  appId: "1:22531666936:web:67a6e63414d5b15632dc0d"
+  appId: "1:22531666936:web:67a6e63414d5b15632dc0d",
+  databaseURL: "https://pokevoice-quiz-bf927-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
 // Initialize Firebase
@@ -46,7 +47,21 @@ let quizHints = {
     firstLetter: ""
 };
 const db = getDatabase(app);
-const databaseUrl = "https://pokevoice-quiz-bf927-default-rtdb.asia-southeast1.firebasedatabase.app/";
+// Firebase接続テスト
+async function testFirebaseConnection() {
+    try {
+        await set(
+            ref(db, "test/message"),
+            "Firebase接続成功！"
+        );
+
+        console.log("Firebaseへの書き込み成功！");
+    } catch (error) {
+        console.error("Firebaseへの書き込み失敗:", error);
+    }
+}
+
+testFirebaseConnection();
 quizStartButton.addEventListener("click", startQuiz);
 replayCryButton.addEventListener("click", () => {
     if (quizPokemon) {

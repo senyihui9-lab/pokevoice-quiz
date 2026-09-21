@@ -1,242 +1,182 @@
+import { initializeApp } from
+    "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import {
+    getAuth,
+    signInAnonymously
+} from
+    "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import {
+    get,
+    getDatabase,
+    ref,
+    set,
+    update
+} from
+    "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+
 const createRoomButton = document.getElementById("createRoomButton");
 const joinRoomButton = document.getElementById("joinRoomButton");
 const battleCodeInput = document.getElementById("battleCode");
 const roomCodeSection = document.getElementById("roomCodeSection");
 const generatedRoomCode = document.getElementById("generatedRoomCode");
 const roomStatusMessage = document.getElementById("roomStatusMessage");
-const battleSetupScreen = document.getElementById("battleSetupScreen");
-const battleGameScreen = document.getElementById("battleGameScreen");
-const battleResultPanel = document.getElementById("battleResultPanel");
-const battleResultText = document.getElementById("battleResultText");
-const battleAnswerInputs = document.querySelectorAll(".battle-answer-input");
-const battleSubmitButtons = document.querySelectorAll(".battle-submit-button");
-const battlePlayerResults = document.querySelectorAll(".battle-player-result");
 
-const ROOM_STORAGE_KEY = "pokemon-battle-room";
-
-const roomState = {
-    roomCode: "",
-    players: [],
-    status: "idle",
-    createdAt: null,
-    ready: false
+const firebaseConfig = {
+    apiKey: "AIzaSyBMbTPARxGLgZHD3lVaY4NeOaHBVHhPRs4",
+    authDomain: "pokevoice-quiz-bf927.firebaseapp.com",
+    projectId: "pokevoice-quiz-bf927",
+    storageBucket: "pokevoice-quiz-bf927.firebasestorage.app",
+    messagingSenderId: "22531666936",
+    appId: "1:22531666936:web:67a6e63414d5b15632dc0d",
+    databaseURL: "https://pokevoice-quiz-bf927-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
-const battleState = {
-    hostAnswer: "",
-    guestAnswer: "",
-    hostSubmitted: false,
-    guestSubmitted: false,
-    hostCorrect: false,
-    guestCorrect: false
-};
-
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+const sessionKey = "pokemon-battle-session";
 const battlePokemonList = [
-    { name: "ピカチュウ", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" },
-    { name: "フシギダネ", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png" },
-    { name: "リザードン", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png" },
-    { name: "ミュウツー", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png" },
-    { name: "ゲッコウガ", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/260.png" }
+    { id: 1, name: "フシギダネ" },
+    { id: 6, name: "リザードン" },
+    { id: 25, name: "ピカチュウ" },
+    { id: 150, name: "ミュウツー" },
+    { id: 658, name: "ゲッコウガ" }
 ];
 
 function generateRoomCode() {
     const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-
-    for (let index = 0; index < 6; index += 1) {
-        const randomIndex = Math.floor(Math.random() * characters.length);
-        code += characters[randomIndex];
-    }
-
-    return code;
+    return Array.from({ length: 6 }, () =>
+        characters[Math.floor(Math.random() * characters.length)]
+    ).join("");
 }
 
 function normalizeRoomCode(value) {
     return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-function renderRoomCode(code) {
-    generatedRoomCode.textContent = code || "-";
-    roomCodeSection.hidden = !code;
-}
-
 function setRoomStatus(message, type = "info") {
     roomStatusMessage.textContent = message;
-    roomStatusMessage.classList.remove("success", "error", "info");
-    roomStatusMessage.classList.add(type);
+    roomStatusMessage.className = `room-status-message ${type}`;
 }
 
-function saveRoom(roomData) {
-    localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(roomData));
-    roomState.roomCode = roomData.roomCode;
-    roomState.players = roomData.players || [];
-    roomState.status = roomData.status || "waiting";
-    roomState.createdAt = roomData.createdAt || new Date().toISOString();
-    roomState.ready = roomData.status === "ready";
+function saveSession(roomCode, role) {
+    sessionStorage.setItem(sessionKey, JSON.stringify({ roomCode, role }));
 }
 
-function showBattleGame() {
-    window.location.href = "battle-game.html";
+function openBattleGame(roomCode, role) {
+    saveSession(roomCode, role);
+    window.location.href = `battle-game.html?room=${encodeURIComponent(roomCode)}`;
 }
 
-function hideBattleGame() {
-    window.location.href = "battle.html";
+async function getAuthenticatedUser() {
+    if (auth.currentUser) {
+        return auth.currentUser;
+    }
+
+    const userCredential = await signInAnonymously(auth);
+    return userCredential.user;
 }
 
-function createRoom() {
-    const roomCode = generateRoomCode();
-    const roomData = {
-        roomCode,
-        createdAt: new Date().toISOString(),
-        status: "waiting",
-        players: ["host"],
-        hostId: "host-user",
-        guestId: null
-    };
+async function createRoom() {
+    createRoomButton.disabled = true;
+    setRoomStatus("部屋を作成しています…");
 
-    saveRoom(roomData);
-    renderRoomCode(roomCode);
-    battleCodeInput.value = "";
-    setRoomStatus(`部屋を作成しました。コード: ${roomCode}`, "success");
-    setTimeout(() => {
-        showBattleGame();
-    }, 200);
-    return roomCode;
+    try {
+        const user = await getAuthenticatedUser();
+        let roomCode = "";
+        let roomReference;
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const candidate = generateRoomCode();
+            const candidateReference = ref(db, `rooms/${candidate}`);
+            const snapshot = await get(candidateReference);
+
+            if (!snapshot.exists()) {
+                roomCode = candidate;
+                roomReference = candidateReference;
+                break;
+            }
+        }
+
+        if (!roomReference) {
+            throw new Error("部屋コードを発行できませんでした");
+        }
+
+        const pokemon = battlePokemonList[
+            Math.floor(Math.random() * battlePokemonList.length)
+        ];
+        await set(roomReference, {
+            status: "waiting",
+            createdAt: Date.now(),
+            hostUid: user.uid,
+            guestUid: null,
+            pokemon,
+            players: {
+                host: { joined: true, answer: "", submitted: false },
+                guest: { joined: false, answer: "", submitted: false }
+            }
+        });
+
+        generatedRoomCode.textContent = roomCode;
+        roomCodeSection.hidden = false;
+        setRoomStatus(`部屋を作成しました。コード: ${roomCode}`, "success");
+        openBattleGame(roomCode, "host");
+    } catch (error) {
+        console.error("部屋の作成に失敗しました:", error);
+        setRoomStatus("部屋を作成できませんでした。Firebase のルールを確認してください。", "error");
+        createRoomButton.disabled = false;
+    }
 }
 
-function joinRoom() {
-    const inputCode = normalizeRoomCode(battleCodeInput.value);
+async function joinRoom() {
+    const roomCode = normalizeRoomCode(battleCodeInput.value);
 
-    if (!inputCode) {
+    if (!roomCode) {
         setRoomStatus("コードを入力してください。", "error");
         return;
     }
 
-    const savedRoom = localStorage.getItem(ROOM_STORAGE_KEY);
-
-    if (!savedRoom) {
-        setRoomStatus("そのコードの部屋はまだ作成されていません。", "error");
-        return;
-    }
+    joinRoomButton.disabled = true;
+    setRoomStatus("部屋を確認しています…");
 
     try {
-        const roomData = JSON.parse(savedRoom);
+        const user = await getAuthenticatedUser();
+        const roomReference = ref(db, `rooms/${roomCode}`);
+        const snapshot = await get(roomReference);
 
-        if (roomData.roomCode !== inputCode) {
-            setRoomStatus("入力したコードと部屋のコードが一致しません。", "error");
+        if (!snapshot.exists()) {
+            setRoomStatus("そのコードの部屋は見つかりません。", "error");
+            joinRoomButton.disabled = false;
             return;
         }
 
-        const players = Array.isArray(roomData.players) ? roomData.players : [];
-        const nextRoomData = {
-            ...roomData,
-            status: "ready",
-            guestId: "guest-user",
-            players: players.includes("guest") ? players : [...players, "guest"]
-        };
+        const roomData = snapshot.val();
 
-        saveRoom(nextRoomData);
-        renderRoomCode(inputCode);
-        setRoomStatus(`部屋に接続しました。コード: ${inputCode}`, "success");
-        setTimeout(() => {
-            showBattleGame();
-        }, 200);
+        if (roomData.status !== "waiting" || roomData.players?.guest?.joined) {
+            setRoomStatus("その部屋は満員、または対戦中です。", "error");
+            joinRoomButton.disabled = false;
+            return;
+        }
+
+        await update(roomReference, {
+            guestUid: user.uid
+        });
+        await update(roomReference, {
+            status: "ready"
+        });
+        await update(ref(db, `rooms/${roomCode}/players/guest`), {
+            joined: true
+        });
+        openBattleGame(roomCode, "guest");
     } catch (error) {
-        console.error("部屋データの読み込みに失敗しました:", error);
-        setRoomStatus("部屋データの取得に失敗しました。", "error");
+        console.error("部屋への参加に失敗しました:", error);
+        setRoomStatus("部屋に参加できませんでした。Firebase のルールを確認してください。", "error");
+        joinRoomButton.disabled = false;
     }
-}
-
-function handleStorageSync(event) {
-    if (event.key !== ROOM_STORAGE_KEY || !event.newValue) {
-        return;
-    }
-
-    try {
-        const roomData = JSON.parse(event.newValue);
-        roomState.roomCode = roomData.roomCode || "";
-        roomState.players = roomData.players || [];
-        roomState.status = roomData.status || "waiting";
-        renderRoomCode(roomState.roomCode);
-        setRoomStatus(`他の参加者が接続しました。コード: ${roomState.roomCode}`, "success");
-    } catch (error) {
-        console.error("同期後のルームデータが不正です:", error);
-    }
-}
-
-function updateBattleResult() {
-    if (!battleState.hostSubmitted || !battleState.guestSubmitted) {
-        return;
-    }
-
-    battleResultPanel.hidden = false;
-
-    const hostResult = battleState.hostCorrect ? "正解" : "不正解";
-    const guestResult = battleState.guestCorrect ? "正解" : "不正解";
-
-    if (battleState.hostCorrect && battleState.guestCorrect) {
-        battleResultText.textContent = `両者とも正解です。引き分けです。`;
-        return;
-    }
-
-    if (battleState.hostCorrect && !battleState.guestCorrect) {
-        battleResultText.textContent = `あなたの勝ちです！あなたは${hostResult}、相手は${guestResult}です。`;
-        return;
-    }
-
-    if (!battleState.hostCorrect && battleState.guestCorrect) {
-        battleResultText.textContent = `相手の勝ちです。あなたは${hostResult}、相手は${guestResult}です。`;
-        return;
-    }
-
-    battleResultText.textContent = `両者とも不正解です。引き分けです。`;
-}
-
-function submitBattleAnswer(player) {
-    const answerInput = document.querySelector(`.battle-answer-input[data-player="${player}"]`);
-    const resultElement = document.querySelector(`.battle-player-result[data-player="${player}"]`);
-    const answer = (answerInput.value || "").trim();
-
-    if (!answer) {
-        resultElement.textContent = "名前を入力してください。";
-        return;
-    }
-
-    const correctMap = {
-        host: "ピカチュウ",
-        guest: "フシギダネ"
-    };
-
-    const normalizedAnswer = answer.replace(/[\s]/g, "");
-    const normalizedCorrect = correctMap[player].replace(/[\s]/g, "");
-
-    const isCorrect = normalizedAnswer === normalizedCorrect;
-
-    if (player === "host") {
-        battleState.hostSubmitted = true;
-        battleState.hostAnswer = answer;
-        battleState.hostCorrect = isCorrect;
-    }
-
-    if (player === "guest") {
-        battleState.guestSubmitted = true;
-        battleState.guestAnswer = answer;
-        battleState.guestCorrect = isCorrect;
-    }
-
-    resultElement.textContent = isCorrect ? "正解" : "不正解";
-    answerInput.disabled = true;
-    document.querySelector(`.battle-submit-button[data-player="${player}"]`).disabled = true;
-    updateBattleResult();
 }
 
 battleCodeInput.addEventListener("input", event => {
     event.target.value = normalizeRoomCode(event.target.value);
 });
-
 createRoomButton.addEventListener("click", createRoom);
 joinRoomButton.addEventListener("click", joinRoom);
-battleSubmitButtons.forEach(button => {
-    button.addEventListener("click", () => submitBattleAnswer(button.dataset.player));
-});
-window.addEventListener("storage", handleStorageSync);
