@@ -555,7 +555,8 @@ async function finalizeRound(roomData) {
         });
     } catch (error) {
         console.error("ラウンド結果の保存に失敗しました:", error);
-        quizMessage.textContent = "結果の同期に失敗しました。相手の画面にも結果を表示しています。";
+        const errorCode = error?.code ? ` (${error.code})` : "";
+        quizMessage.textContent = `結果の同期に失敗しました${errorCode}。Firebase Rules または通信状態を確認してください。`;
     } finally {
         battleState.finalizingRound = false;
     }
