@@ -292,12 +292,10 @@ button:disabled {
 }
 
 .back-link {
-    position: fixed;
-    top: max(16px, env(safe-area-inset-top));
-    left: max(16px, env(safe-area-inset-left));
-    z-index: 20;
-    display: inline-block;
-    margin: 0;
+    display: block;
+    width: fit-content;
+    align-self: flex-start;
+    margin: 0 0 18px;
     padding: 8px 12px;
     border-radius: 8px;
     background-color: rgba(255, 255, 255, 0.92);
@@ -391,10 +389,6 @@ button:disabled {
 
 .join-room-section {
     align-items: stretch;
-}
-
-.join-room-section .back-link {
-    margin-top: 0;
 }
 
 .room-status-message {
