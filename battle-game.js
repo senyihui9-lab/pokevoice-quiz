@@ -168,8 +168,10 @@ function startNextRoundCountdown(roomData) {
                 advanceRound(roomData)
                     .catch(error => {
                         console.error("次のラウンドへの移行に失敗しました:", error);
+                        const errorCode = error?.code ? ` (${error.code})` : "";
+                        const errorMessage = error?.message ? ` ${error.message}` : "";
                         nextRoundCountdown.hidden = false;
-                        nextRoundCountdown.textContent = "次の問題へ移動できませんでした。Firebase Rules または通信状態を確認してください。";
+                        nextRoundCountdown.textContent = `次の問題へ移動できませんでした${errorCode}。${errorMessage}`;
                     })
                     .finally(() => {
                         battleState.advancingRound = false;
