@@ -11,7 +11,6 @@ import {
 
 const quizStartButton = document.getElementById("quizStartButton");
 const replayCryButton = document.getElementById("replayCryButton");
-const quizCheckButton = document.getElementById("quizCheckButton");
 const quizAnswer = document.getElementById("quizAnswer");
 const quizAnswerArea = document.getElementById("quizAnswerArea");
 const quizMessage = document.getElementById("quizMessage");
@@ -62,19 +61,18 @@ async function testFirebaseConnection() {
 }
 
 testFirebaseConnection();
-quizStartButton.addEventListener("click", startQuiz);
-replayCryButton.addEventListener("click", () => {
-    if (quizPokemon) {
-        playCry(quizPokemon);
-    }
-});
-quizCheckButton.addEventListener("click", () => {
-    if (quizAnswered) {
+quizStartButton.addEventListener("click", () => {
+    if (!quizPokemon || quizAnswered) {
         startQuiz();
         return;
     }
 
     checkQuizAnswer();
+});
+replayCryButton.addEventListener("click", () => {
+    if (quizPokemon) {
+        playCry(quizPokemon);
+    }
 });
 quizAnswer.addEventListener("input", updateSuggestions);
 quizAnswer.addEventListener("input", updateAnswerButton);
@@ -199,14 +197,13 @@ function normalizeKana(text) {
 
 async function startQuiz() {
     quizStartButton.disabled = true;
-    quizCheckButton.hidden = true;
+    quizStartButton.textContent = "読み込み中...";
+    quizPokemon = null;
     quizAnswerArea.hidden = true;
     quizAnswer.value = "";
     quizAnswered = false;
     quizAnswer.disabled = false;
-    quizCheckButton.disabled = false;
     setResultBackground("");
-    updateAnswerButton();
     resetHints();
     showQuestionMark();
     quizMessage.textContent = "ポケモンを選んで鳴き声を再生しています...";
@@ -240,16 +237,15 @@ async function startQuiz() {
         };
         quizMessage.textContent = "鳴き声を聞いて、ポケモンの名前を入力してください。";
         quizAnswerArea.hidden = false;
-        quizStartButton.hidden = true;
-        quizCheckButton.hidden = false;
+        updateAnswerButton();
         replayCryButton.disabled = false;
         quizAnswer.focus();
         await playCry(data);
     } catch (error) {
         console.error(error);
         quizMessage.textContent = "クイズの準備に失敗しました。もう一度開始してください。";
-        quizStartButton.hidden = false;
-        quizCheckButton.hidden = true;
+        quizStartButton.textContent = "クイズ開始";
+        quizStartButton.classList.remove("give-up-button", "check-answer-button");
     } finally {
         quizStartButton.disabled = false;
     }
@@ -257,16 +253,16 @@ async function startQuiz() {
 
 function updateAnswerButton() {
     if (quizAnswered) {
-        quizCheckButton.textContent = "次の問題へ";
-        quizCheckButton.classList.remove("give-up-button");
-        quizCheckButton.classList.add("check-answer-button");
+        quizStartButton.textContent = "次の問題へ";
+        quizStartButton.classList.remove("give-up-button");
+        quizStartButton.classList.add("check-answer-button");
         return;
     }
 
     const hasAnswer = quizAnswer.value.trim().length > 0;
-    quizCheckButton.textContent = hasAnswer ? "答え合わせ" : "あきらめる";
-    quizCheckButton.classList.toggle("give-up-button", !hasAnswer);
-    quizCheckButton.classList.toggle("check-answer-button", hasAnswer);
+    quizStartButton.textContent = hasAnswer ? "答え合わせ" : "あきらめる";
+    quizStartButton.classList.toggle("give-up-button", !hasAnswer);
+    quizStartButton.classList.toggle("check-answer-button", hasAnswer);
 }
 
 function resetHints() {
@@ -358,7 +354,6 @@ function checkQuizAnswer() {
 
     quizAnswered = true;
     quizAnswer.disabled = true;
-    quizCheckButton.disabled = false;
     updateAnswerButton();
     setResultBackground(answer === correctAnswer ? "correct" : "incorrect");
     showPokemonImage(quizPokemon);
