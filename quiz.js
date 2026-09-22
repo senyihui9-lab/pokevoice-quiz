@@ -68,7 +68,14 @@ replayCryButton.addEventListener("click", () => {
         playCry(quizPokemon);
     }
 });
-quizCheckButton.addEventListener("click", checkQuizAnswer);
+quizCheckButton.addEventListener("click", () => {
+    if (quizAnswered) {
+        startQuiz();
+        return;
+    }
+
+    checkQuizAnswer();
+});
 quizAnswer.addEventListener("input", updateSuggestions);
 quizAnswer.addEventListener("input", updateAnswerButton);
 quizAnswer.addEventListener("focus", updateSuggestions);
@@ -249,6 +256,13 @@ async function startQuiz() {
 }
 
 function updateAnswerButton() {
+    if (quizAnswered) {
+        quizCheckButton.textContent = "次の問題へ";
+        quizCheckButton.classList.remove("give-up-button");
+        quizCheckButton.classList.add("check-answer-button");
+        return;
+    }
+
     const hasAnswer = quizAnswer.value.trim().length > 0;
     quizCheckButton.textContent = hasAnswer ? "答え合わせ" : "あきらめる";
     quizCheckButton.classList.toggle("give-up-button", !hasAnswer);
@@ -344,7 +358,8 @@ function checkQuizAnswer() {
 
     quizAnswered = true;
     quizAnswer.disabled = true;
-    quizCheckButton.disabled = true;
+    quizCheckButton.disabled = false;
+    updateAnswerButton();
     setResultBackground(answer === correctAnswer ? "correct" : "incorrect");
     showPokemonImage(quizPokemon);
 }
