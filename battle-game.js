@@ -20,8 +20,6 @@ const replayCryButton = document.getElementById("replayCryButton");
 const quizAnswer = document.getElementById("quizAnswer");
 const pokemonSuggestions = document.getElementById("pokemonSuggestions");
 const quizCheckButton = document.getElementById("quizCheckButton");
-const battleResultPanel = document.getElementById("battleResultPanel");
-const battleResultText = document.getElementById("battleResultText");
 const nextRoundCountdown = document.getElementById("nextRoundCountdown");
 const battleScore = document.getElementById("battleScore");
 const matchResultPopup = document.getElementById("matchResultPopup");
@@ -146,6 +144,7 @@ function stopNextRoundCountdown() {
         battleState.countdownTimer = null;
     }
     nextRoundCountdown.hidden = true;
+    nextRoundCountdown.classList.remove("is-visible");
 }
 
 function startNextRoundCountdown(roomData) {
@@ -160,6 +159,7 @@ function startNextRoundCountdown(roomData) {
         const seconds = Math.ceil(remaining / 1000);
         nextRoundCountdown.textContent = `${seconds}秒後に次の問題へ移動します`;
         nextRoundCountdown.hidden = false;
+        nextRoundCountdown.classList.add("is-visible");
 
         if (remaining <= 0) {
             stopNextRoundCountdown();
@@ -171,6 +171,7 @@ function startNextRoundCountdown(roomData) {
                         const errorCode = error?.code ? ` (${error.code})` : "";
                         const errorMessage = error?.message ? ` ${error.message}` : "";
                         nextRoundCountdown.hidden = false;
+                        nextRoundCountdown.classList.add("is-visible");
                         nextRoundCountdown.textContent = `次の問題へ移動できませんでした${errorCode}。${errorMessage}`;
                     })
                     .finally(() => {
@@ -319,7 +320,7 @@ function normalizeKana(text) {
 
 async function playCry() {
     if (!battleState.pokemonId) {
-        return;
+        return false;
     }
 
     const audioUrl =
@@ -334,9 +335,10 @@ async function playCry() {
 
     try {
         await battleState.audio.play();
+        return true;
     } catch (error) {
         console.error("鳴き声の再生に失敗しました:", error);
-        quizMessage.textContent = "自動再生が制限されています。スピーカーボタンを押してください。";
+        return false;
     }
 }
 
@@ -436,8 +438,6 @@ function showResult(roomData, fallbackResult = null) {
     const opponentRole = role === "host" ? "guest" : "host";
     const opponentCorrect = players[opponentRole]?.correct === true;
     const scores = roomData.scores || { host: 0, guest: 0 };
-    const myScore = scores[role] || 0;
-    const opponentScore = scores[opponentRole] || 0;
     const isDraw = result.kind === "correct"
         && !result.winner
         && scores.host >= 5
@@ -453,34 +453,21 @@ function showResult(roomData, fallbackResult = null) {
     setWaitingState(false);
     quizAnswer.disabled = true;
     quizCheckButton.disabled = true;
-    battleResultPanel.hidden = false;
     updateScoreDisplay(roomData);
     startNextRoundCountdown(roomData);
 
     if (result.kind === "failure") {
         quizMessage.textContent = "今回は失敗です。";
-        battleResultText.textContent = "ヒント3の後も両者不正解でした。次の問題へ進んでください。";
     } else if (myCorrect && opponentCorrect) {
         quizMessage.textContent = "対戦結果が出ました。";
-        battleResultText.textContent = `両者正解で1点ずつ。現在 ${myScore} - ${opponentScore} です。`;
     } else if (myCorrect) {
         quizMessage.textContent = result.winner ? "あなたの勝ちです！" : "あなたが正解しました。";
-        battleResultText.textContent = `あなたに1点。現在 ${myScore} - ${opponentScore} です。`;
     } else if (opponentCorrect) {
         quizMessage.textContent = result.winner ? "相手の勝ちです。" : "相手が正解しました。";
-        battleResultText.textContent = `相手に1点。現在 ${myScore} - ${opponentScore} です。`;
     } else {
         quizMessage.textContent = "対戦結果が出ました。";
-        battleResultText.textContent = `両者不正解で加点なし。正解は ${battleState.correctAnswer} でした。現在 ${myScore} - ${opponentScore} です。`;
     }
 
-    if (isDraw) {
-        battleResultText.textContent += " 同時に5点に到達したため引き分けです。";
-    } else if (result.winner) {
-        battleResultText.textContent += result.winner === role
-            ? " 5点先取であなたの勝利です。"
-            : " 5点先取で相手の勝利です。";
-    }
 }
 
 async function finalizeRound(roomData) {
@@ -661,7 +648,6 @@ function handleRoomUpdate(snapshot) {
         battleState.resultShown = false;
         document.body.classList.remove("result-correct", "result-incorrect");
         setMatchResultPopup(null);
-        battleResultPanel.hidden = true;
         quizAnswer.value = "";
         quizAnswer.disabled = false;
         quizCheckButton.disabled = false;
@@ -676,7 +662,6 @@ function handleRoomUpdate(snapshot) {
         quizAnswer.value = "";
         quizAnswer.disabled = false;
         quizCheckButton.disabled = false;
-        battleResultPanel.hidden = true;
         showQuestionMark();
     }
 
@@ -751,7 +736,17 @@ function startQuiz() {
     quizMessage.textContent = "鳴き声を聞いて、ポケモンの名前を入力してください。";
     replayCryButton.disabled = false;
 
-    playCry();
+    playCry().then(isPlaying => {
+        if (isPlaying) {
+            return;
+        }
+
+        battleState.started = false;
+        quizStartButton.hidden = false;
+        quizStartButton.disabled = false;
+        quizStartButton.textContent = "タップして鳴き声を再生";
+        quizMessage.textContent = "スマホでは自動再生できないため、ボタンをタップしてください。";
+    });
 }
 
 quizStartButton.addEventListener("click", () => {
