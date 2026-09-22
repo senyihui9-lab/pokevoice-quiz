@@ -616,6 +616,11 @@ button:disabled {
     box-shadow: 0 10px 0 #922f2f, 0 18px 30px rgba(146, 47, 47, 0.35);
 }
 
+.match-result-popup.draw strong {
+    background-color: #c48a1a;
+    box-shadow: 0 10px 0 #8a5a00, 0 18px 30px rgba(138, 90, 0, 0.35);
+}
+
 @keyframes match-result-appear {
     from {
         opacity: 0;

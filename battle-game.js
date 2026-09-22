@@ -123,9 +123,15 @@ function setResultBackground(isCorrect) {
 
 function setMatchResultPopup(winner) {
     matchResultPopup.hidden = !winner;
-    matchResultPopup.classList.remove("win", "lose");
+    matchResultPopup.classList.remove("win", "lose", "draw");
 
     if (!winner) {
+        return;
+    }
+
+    if (winner === "draw") {
+        matchResultPopup.classList.add("draw");
+        matchResultPopupText.textContent = "引き分け";
         return;
     }
 
@@ -430,9 +436,13 @@ function showResult(roomData, fallbackResult = null) {
     const scores = roomData.scores || { host: 0, guest: 0 };
     const myScore = scores[role] || 0;
     const opponentScore = scores[opponentRole] || 0;
+    const isDraw = result.kind === "correct"
+        && !result.winner
+        && scores.host >= 5
+        && scores.guest >= 5;
     battleState.resultShown = true;
     setResultBackground(myCorrect);
-    setMatchResultPopup(result.winner);
+    setMatchResultPopup(isDraw ? "draw" : result.winner);
     if (result.kind !== "failure") {
         showPokemonImage();
     } else {
@@ -462,7 +472,9 @@ function showResult(roomData, fallbackResult = null) {
         battleResultText.textContent = `両者不正解で加点なし。正解は ${battleState.correctAnswer} でした。現在 ${myScore} - ${opponentScore} です。`;
     }
 
-    if (result.winner) {
+    if (isDraw) {
+        battleResultText.textContent += " 同時に5点に到達したため引き分けです。";
+    } else if (result.winner) {
         battleResultText.textContent += result.winner === role
             ? " 5点先取であなたの勝利です。"
             : " 5点先取で相手の勝利です。";
@@ -487,11 +499,14 @@ async function finalizeRound(roomData) {
         host: (scores.host || 0) + (hostPlayer.correct ? 1 : 0),
         guest: (scores.guest || 0) + (guestPlayer.correct ? 1 : 0)
     };
-    const winner = nextScores.host >= 5
-        ? "host"
-        : nextScores.guest >= 5
-            ? "guest"
-            : null;
+    const isDraw = nextScores.host >= 5 && nextScores.guest >= 5;
+    const winner = isDraw
+        ? null
+        : nextScores.host >= 5
+            ? "host"
+            : nextScores.guest >= 5
+                ? "guest"
+                : null;
 
     if (!hostPlayer.correct && !guestPlayer.correct) {
         try {
@@ -535,7 +550,7 @@ async function finalizeRound(roomData) {
                 hostCorrect: hostPlayer.correct === true,
                 guestCorrect: guestPlayer.correct === true,
                 winner,
-                nextRoundAt: winner ? null : Date.now() + 5000
+                nextRoundAt: isDraw || winner ? null : Date.now() + 5000
             }
         });
     } catch (error) {
