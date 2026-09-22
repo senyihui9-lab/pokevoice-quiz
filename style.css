@@ -291,11 +291,6 @@ button:disabled {
     margin-top: 20px;
 }
 
-#quizStartButton {
-    color: #222;
-    background-color: #ffd43b;
-}
-
 .back-link {
     display: block;
     margin-top: 30px;

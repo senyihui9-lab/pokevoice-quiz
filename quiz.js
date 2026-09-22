@@ -192,6 +192,7 @@ function normalizeKana(text) {
 
 async function startQuiz() {
     quizStartButton.disabled = true;
+    quizCheckButton.hidden = true;
     quizAnswerArea.hidden = true;
     quizAnswer.value = "";
     quizAnswered = false;
@@ -232,12 +233,16 @@ async function startQuiz() {
         };
         quizMessage.textContent = "鳴き声を聞いて、ポケモンの名前を入力してください。";
         quizAnswerArea.hidden = false;
+        quizStartButton.hidden = true;
+        quizCheckButton.hidden = false;
         replayCryButton.disabled = false;
         quizAnswer.focus();
         await playCry(data);
     } catch (error) {
         console.error(error);
         quizMessage.textContent = "クイズの準備に失敗しました。もう一度開始してください。";
+        quizStartButton.hidden = false;
+        quizCheckButton.hidden = true;
     } finally {
         quizStartButton.disabled = false;
     }

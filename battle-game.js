@@ -15,7 +15,6 @@ import {
 
 const quizMessage = document.getElementById("quizMessage");
 const quizPokemonImage = document.getElementById("quizPokemonImage");
-const quizStartButton = document.getElementById("quizStartButton");
 const replayCryButton = document.getElementById("replayCryButton");
 const quizAnswer = document.getElementById("quizAnswer");
 const pokemonSuggestions = document.getElementById("pokemonSuggestions");
@@ -594,7 +593,6 @@ function handleRoomUpdate(snapshot) {
 
     if (!roomData) {
         quizMessage.textContent = "部屋が見つかりません。";
-        quizStartButton.disabled = true;
         return;
     }
 
@@ -603,7 +601,6 @@ function handleRoomUpdate(snapshot) {
 
     if (!authenticatedUser || authenticatedUser.uid !== expectedUid) {
         quizMessage.textContent = "この部屋に参加する権限がありません。";
-        quizStartButton.disabled = true;
         quizAnswer.disabled = true;
         quizCheckButton.disabled = true;
         setWaitingState(false);
@@ -626,7 +623,6 @@ function handleRoomUpdate(snapshot) {
     }
 
     if (!roomData.players?.guest?.joined) {
-        quizStartButton.disabled = true;
         quizMessage.textContent = "相手の参加を待っています。";
         setWaitingState(true);
         return;
@@ -730,8 +726,6 @@ function startQuiz() {
     }
 
     battleState.started = true;
-    quizStartButton.disabled = true;
-    quizStartButton.hidden = true;
     showQuestionMark();
     quizMessage.textContent = "鳴き声を聞いて、ポケモンの名前を入力してください。";
     replayCryButton.disabled = false;
@@ -741,17 +735,9 @@ function startQuiz() {
             return;
         }
 
-        battleState.started = false;
-        quizStartButton.hidden = false;
-        quizStartButton.disabled = false;
-        quizStartButton.textContent = "タップして鳴き声を再生";
-        quizMessage.textContent = "スマホでは自動再生できないため、ボタンをタップしてください。";
+        quizMessage.textContent = "鳴き声を再生するには音量アイコンを押してください。";
     });
 }
-
-quizStartButton.addEventListener("click", () => {
-    startQuiz();
-});
 
 replayCryButton.addEventListener("click", () => {
     playCry();
@@ -779,7 +765,6 @@ loadPokemonNames();
 
 if (!roomCode || !session) {
     quizMessage.textContent = "部屋情報がありません。対戦モードから入り直してください。";
-    quizStartButton.disabled = true;
 } else {
     getAuthenticatedUser()
         .then(() => {
@@ -791,6 +776,5 @@ if (!roomCode || !session) {
         .catch(error => {
             console.error("匿名認証に失敗しました:", error);
             quizMessage.textContent = "認証に失敗しました。対戦を開始できません。";
-            quizStartButton.disabled = true;
         });
 }
